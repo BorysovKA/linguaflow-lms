@@ -1,0 +1,960 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Course, Lesson, ContentBlock, ContentType, UserRole } from '../types';
+import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import mammoth from 'mammoth';
+
+interface CurriculumProps {
+  courses: Course[];
+  userRole: UserRole;
+  initialSelection?: { courseId?: string; moduleId?: string; lessonId?: string } | null;
+  onUpdateLesson?: (courseId: string, moduleId: string, lesson: Lesson, description?: string) => void;
+  onAddLesson?: (courseId: string, moduleId: string) => void;
+  onAddCourse?: () => void;
+  onAddModule?: (courseId: string) => void;
+  onMoveCourse?: (index: number, direction: 'up' | 'down') => void;
+  onMoveModule?: (courseId: string, index: number, direction: 'up' | 'down') => void;
+  onMoveLesson?: (courseId: string, moduleId: string, index: number, direction: 'up' | 'down') => void;
+  onUpdateCourse?: (id: string, title: string, level: Course['level'], audience: Course['targetAudience']) => void;
+  onRenameModule?: (courseId: string, moduleId: string, newTitle: string) => void;
+  onDeleteCourse?: (id: string) => void;
+  onDeleteModule?: (courseId: string, moduleId: string) => void;
+  onDeleteLesson?: (courseId: string, moduleId: string, lessonId: string) => void;
+}
+
+export const Curriculum: React.FC<CurriculumProps> = ({ 
+  courses, 
+  userRole, 
+  initialSelection,
+  onUpdateLesson, 
+  onAddLesson, 
+  onAddCourse, 
+  onAddModule, 
+  onMoveCourse, 
+  onMoveModule, 
+  onMoveLesson, 
+  onUpdateCourse, 
+  onRenameModule,
+  onDeleteCourse,
+  onDeleteModule,
+  onDeleteLesson
+}) => {
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [selectedLesson, setSelectedLesson] = useState<{ courseId: string, moduleId: string, lesson: Lesson } | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    type: 'course' | 'module' | 'lesson';
+    ids: { id1: string, id2?: string, id3?: string };
+  } | null>(null);
+
+  const [editingItem, setEditingItem] = useState<{
+    type: 'course' | 'module';
+    id: string;
+    moduleId?: string;
+    title: string;
+    level?: Course['level'];
+    audience?: Course['targetAudience'];
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useLanguage();
+
+  useEffect(() => {
+    if (initialSelection) {
+      if (initialSelection.moduleId) {
+        setExpandedModules(prev => ({ ...prev, [initialSelection.moduleId!]: true }));
+      }
+      
+      if (initialSelection.lessonId && initialSelection.courseId && initialSelection.moduleId) {
+        const course = courses.find(c => c.id === initialSelection.courseId);
+        const module = course?.modules.find(m => m.id === initialSelection.moduleId);
+        const lesson = module?.lessons.find(l => l.id === initialSelection.lessonId);
+        
+        if (course && module && lesson) {
+            setSelectedLesson({ courseId: course.id, moduleId: module.id, lesson });
+        }
+      }
+    }
+  }, [initialSelection, courses]);
+
+  const toggleModule = (modId: string) => {
+    setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));
+  };
+  
+  const expandAll = () => {
+      const allModules: Record<string, boolean> = {};
+      courses.forEach(c => c.modules.forEach(m => allModules[m.id] = true));
+      setExpandedModules(allModules);
+  };
+
+  const collapseAll = () => {
+      setExpandedModules({});
+  };
+
+  const canEditContent = userRole === 'methodist' || userRole === 'admin';
+  const canSetReadiness = userRole === 'methodist' || userRole === 'admin';
+  const canRate = userRole === 'methodist' || userRole === 'admin' || userRole === 'teacher';
+
+  const handleLessonSelect = (courseId: string, moduleId: string, lesson: Lesson) => {
+    setSelectedLesson({ courseId, moduleId, lesson });
+    setIsEditing(false);
+  };
+
+  const requestDelete = (e: React.MouseEvent, type: 'course' | 'module' | 'lesson', id1: string, id2?: string, id3?: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setDeleteConfirmation({
+      isOpen: true,
+      type,
+      ids: { id1, id2, id3 }
+    });
+  };
+
+  const confirmDelete = () => {
+    if (!deleteConfirmation) return;
+    const { type, ids } = deleteConfirmation;
+
+    if (type === 'course') {
+        onDeleteCourse?.(ids.id1);
+        if (selectedLesson?.courseId === ids.id1) setSelectedLesson(null);
+    }
+    if (type === 'module' && ids.id2) {
+        onDeleteModule?.(ids.id1, ids.id2);
+        if (selectedLesson?.moduleId === ids.id2) setSelectedLesson(null);
+    }
+    if (type === 'lesson' && ids.id2 && ids.id3) {
+        onDeleteLesson?.(ids.id1, ids.id2, ids.id3);
+        if (selectedLesson?.lesson.id === ids.id3) setSelectedLesson(null);
+    }
+    setDeleteConfirmation(null);
+  };
+
+  const handleSaveContent = () => {
+    if (selectedLesson && onUpdateLesson) {
+      onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson, "Content updated manually");
+      setIsEditing(false);
+    }
+  };
+
+  const handleRate = (newRating: number) => {
+    if (!selectedLesson) return;
+    const updatedLesson = { ...selectedLesson.lesson, rating: newRating };
+    setSelectedLesson({ ...selectedLesson, lesson: updatedLesson });
+    
+    if (!isEditing && onUpdateLesson) {
+        onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, updatedLesson, `Rating changed to ${newRating}`);
+    }
+  };
+
+  const handleAddBlock = (type: ContentType, initialContent: string = '') => {
+    if (!selectedLesson) return;
+    
+    let metadata = undefined;
+    if (type === ContentType.QUIZ) {
+      metadata = { options: ['Option 1', 'Option 2'], correctIndex: 0 };
+    }
+
+    const newBlock: ContentBlock = {
+      id: Date.now().toString(),
+      type,
+      content: initialContent || (type === ContentType.TEXT ? 'New text content...' : type === ContentType.QUIZ ? 'New Question?' : 'https://picsum.photos/600/300'),
+      metadata
+    };
+    setSelectedLesson({
+      ...selectedLesson,
+      lesson: {
+        ...selectedLesson.lesson,
+        blocks: [...selectedLesson.lesson.blocks, newBlock]
+      }
+    });
+  };
+
+  const handleUpdateBlock = (blockId: string, content: string) => {
+     if (!selectedLesson) return;
+     const updatedBlocks = selectedLesson.lesson.blocks.map(b => 
+       b.id === blockId ? { ...b, content } : b
+     );
+     setSelectedLesson({
+       ...selectedLesson,
+       lesson: { ...selectedLesson.lesson, blocks: updatedBlocks }
+     });
+  };
+
+  const handleDeleteBlock = (blockId: string) => {
+    if (!selectedLesson) return;
+    const updatedBlocks = selectedLesson.lesson.blocks.filter(b => b.id !== blockId);
+    setSelectedLesson({
+      ...selectedLesson,
+      lesson: { ...selectedLesson.lesson, blocks: updatedBlocks }
+    });
+  };
+
+  const handleMoveBlock = (index: number, direction: 'up' | 'down') => {
+    if (!selectedLesson) return;
+    const blocks = [...selectedLesson.lesson.blocks];
+    
+    if (direction === 'up' && index > 0) {
+      [blocks[index], blocks[index - 1]] = [blocks[index - 1], blocks[index]];
+    } else if (direction === 'down' && index < blocks.length - 1) {
+      [blocks[index], blocks[index + 1]] = [blocks[index + 1], blocks[index]];
+    }
+
+    setSelectedLesson({
+      ...selectedLesson,
+      lesson: { ...selectedLesson.lesson, blocks }
+    });
+  };
+
+  const insertFormat = (blockId: string, tag: 'b' | 'i' | 'ul') => {
+    const textarea = document.getElementById(`textarea-${blockId}`) as HTMLTextAreaElement;
+    if (!textarea || !selectedLesson) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selectedText = text.substring(start, end);
+    
+    let replacement = '';
+    if (tag === 'b') replacement = `<b>${selectedText}</b>`;
+    if (tag === 'i') replacement = `<i>${selectedText}</i>`;
+    if (tag === 'ul') replacement = `\n<ul>\n  <li>${selectedText}</li>\n</ul>\n`;
+
+    const newContent = text.substring(0, start) + replacement + text.substring(end);
+    handleUpdateBlock(blockId, newContent);
+  };
+
+  const handleQuizOptionChange = (blockId: string, optIndex: number, newVal: string) => {
+    if (!selectedLesson) return;
+    const updatedBlocks = selectedLesson.lesson.blocks.map(b => {
+      if (b.id !== blockId) return b;
+      const newOptions = [...(b.metadata?.options || [])];
+      newOptions[optIndex] = newVal;
+      return { ...b, metadata: { ...b.metadata, options: newOptions } };
+    });
+    setSelectedLesson({ ...selectedLesson, lesson: { ...selectedLesson.lesson, blocks: updatedBlocks } });
+  };
+
+  const setQuizCorrectAnswer = (blockId: string, optIndex: number) => {
+    if (!selectedLesson) return;
+    const updatedBlocks = selectedLesson.lesson.blocks.map(b => {
+      if (b.id !== blockId) return b;
+      return { ...b, metadata: { ...b.metadata, correctIndex: optIndex } };
+    });
+    setSelectedLesson({ ...selectedLesson, lesson: { ...selectedLesson.lesson, blocks: updatedBlocks } });
+  };
+
+  const addQuizOption = (blockId: string) => {
+    if (!selectedLesson) return;
+    const updatedBlocks = selectedLesson.lesson.blocks.map(b => {
+      if (b.id !== blockId) return b;
+      const newOptions = [...(b.metadata?.options || []), `Option ${(b.metadata?.options?.length || 0) + 1}`];
+      return { ...b, metadata: { ...b.metadata, options: newOptions } };
+    });
+    setSelectedLesson({ ...selectedLesson, lesson: { ...selectedLesson.lesson, blocks: updatedBlocks } });
+  };
+
+  const removeQuizOption = (blockId: string, optIndex: number) => {
+    if (!selectedLesson) return;
+    const updatedBlocks = selectedLesson.lesson.blocks.map(b => {
+      if (b.id !== blockId) return b;
+      const newOptions = (b.metadata?.options || []).filter((_: any, i: number) => i !== optIndex);
+      let newCorrect = b.metadata?.correctIndex || 0;
+      if (optIndex < newCorrect) newCorrect--;
+      if (newCorrect >= newOptions.length) newCorrect = Math.max(0, newOptions.length - 1);
+      
+      return { ...b, metadata: { ...b.metadata, options: newOptions, correctIndex: newCorrect } };
+    });
+    setSelectedLesson({ ...selectedLesson, lesson: { ...selectedLesson.lesson, blocks: updatedBlocks } });
+  };
+
+  const handleImageUpload = (blockId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+        handleUpdateBlock(blockId, reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImportDoc = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        const arrayBuffer = event.target?.result as ArrayBuffer;
+        try {
+            const result = await mammoth.convertToHtml({ arrayBuffer });
+            handleAddBlock(ContentType.TEXT, result.value);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        } catch (err) {
+            console.error("Failed to convert .docx", err);
+            alert("Error converting file. Please ensure it is a valid .docx file.");
+        }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const initiateEditCourse = (course: Course) => {
+    setEditingItem({
+        type: 'course',
+        id: course.id,
+        title: course.title,
+        level: course.level,
+        audience: course.targetAudience
+    });
+  };
+
+  const initiateEditModule = (courseId: string, module: any) => {
+      setEditingItem({
+          type: 'module',
+          id: courseId,
+          moduleId: module.id,
+          title: module.title
+      });
+  };
+
+  const submitEdit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingItem) return;
+      
+      if (editingItem.type === 'course') {
+          onUpdateCourse?.(
+              editingItem.id, 
+              editingItem.title, 
+              editingItem.level || 'A1', 
+              editingItem.audience || 'adults'
+          );
+      } else if (editingItem.type === 'module' && editingItem.moduleId) {
+          onRenameModule?.(editingItem.id, editingItem.moduleId, editingItem.title);
+      }
+      setEditingItem(null);
+  };
+
+  const getCourseStats = (course: Course) => {
+    let totalRating = 0;
+    let totalReadiness = 0;
+    let ratedLessons = 0;
+    let totalLessons = 0;
+
+    course.modules.forEach(m => {
+      m.lessons.forEach(l => {
+        totalLessons++;
+        if (l.rating) {
+          totalRating += l.rating;
+          ratedLessons++;
+        }
+        if (l.readiness) {
+          totalReadiness += l.readiness;
+        }
+      });
+    });
+
+    return {
+      avgRating: ratedLessons > 0 ? (totalRating / ratedLessons).toFixed(1) : '-',
+      avgReadiness: totalLessons > 0 ? Math.round(totalReadiness / totalLessons) : 0
+    };
+  };
+
+  const getModuleStats = (lessons: Lesson[]) => {
+    let totalRating = 0;
+    let totalReadiness = 0;
+    let ratedLessons = 0;
+
+    lessons.forEach(l => {
+        if (l.rating) {
+          totalRating += l.rating;
+          ratedLessons++;
+        }
+        if (l.readiness) {
+          totalReadiness += l.readiness;
+        }
+    });
+
+    return {
+      avgRating: ratedLessons > 0 ? (totalRating / ratedLessons).toFixed(1) : '-',
+      avgReadiness: lessons.length > 0 ? Math.round(totalReadiness / lessons.length) : 0
+    };
+  };
+
+  const updateReadiness = (val: number) => {
+    if (!selectedLesson) return;
+    const updatedLesson = { ...selectedLesson.lesson, readiness: val };
+    setSelectedLesson({
+        ...selectedLesson,
+        lesson: updatedLesson
+    });
+    if (onUpdateLesson) {
+       onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, updatedLesson, `Readiness updated to ${val}%`);
+    }
+  };
+  
+  const getReadinessColor = (val: number) => {
+      if (val === 100) return 'bg-green-500 border-green-600';
+      if (val >= 75) return 'bg-indigo-500 border-indigo-600';
+      if (val >= 50) return 'bg-yellow-400 border-yellow-500';
+      return 'bg-orange-400 border-orange-500';
+  };
+  
+  const ReadinessControl = ({ value, onChange }: { value: number, onChange: (v: number) => void }) => {
+      const steps = [25, 50, 75, 100];
+      
+      return (
+          <div className="flex flex-col gap-1 select-none">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider leading-none">{t.readiness}</span>
+              <div className="flex items-center gap-1.5 h-6">
+                <div className="flex gap-1">
+                    {steps.map(step => (
+                        <div 
+                            key={step}
+                            onClick={() => onChange(step)}
+                            className={`w-6 h-2.5 rounded-sm cursor-pointer transition-all duration-200 border ${
+                                value >= step 
+                                    ? getReadinessColor(value) 
+                                    : 'bg-slate-100 border-slate-200 hover:bg-slate-200'
+                            }`}
+                        />
+                    ))}
+                </div>
+                <div className="w-10 text-right font-bold text-slate-700 text-sm flex justify-end">
+                    {value > 0 ? (
+                        <span className={value === 100 ? 'text-green-600' : ''}>{value}%</span>
+                    ) : (
+                        <span onClick={() => onChange(25)} className="text-slate-300 cursor-pointer hover:text-slate-400">0%</span>
+                    )}
+                </div>
+              </div>
+          </div>
+      );
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-8rem)] gap-6 relative">
+      <div className="w-1/3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h2 className="font-bold text-lg text-slate-800">{t.courses}</h2>
+          <div className="flex gap-1">
+             <button onClick={expandAll} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded border border-transparent hover:border-slate-200 transition-all" title="Expand All"><FolderOpen size={16} /></button>
+             <button onClick={collapseAll} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded border border-transparent hover:border-slate-200 transition-all" title="Collapse All"><FolderClosed size={16} /></button>
+             {canEditContent && <button onClick={onAddCourse} className="ml-1 text-xs bg-indigo-600 text-white hover:bg-indigo-700 px-2 py-1.5 rounded transition-colors flex items-center gap-1 shadow-sm"><Plus size={14} /> {t.addCourse}</button>}
+          </div>
+        </div>
+        
+        <div className="overflow-y-auto p-4 space-y-4 flex-1">
+          {courses.map((course, cIdx) => {
+            const cStats = getCourseStats(course);
+            return (
+              <div key={course.id} className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                <div className="bg-slate-50 p-3 font-semibold text-slate-700">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-base">{course.title}</span>
+                    <div className="flex items-center gap-1">
+                      {canEditContent && (
+                        <>
+                          <button 
+                            onClick={() => initiateEditCourse(course)} 
+                            className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                          >
+                            <PenLine size={14} />
+                          </button>
+                          <button onClick={() => onMoveCourse?.(cIdx, 'up')} className="p-1.5 hover:bg-slate-200 rounded text-slate-400"><ArrowUp size={14} /></button>
+                          <button onClick={() => onMoveCourse?.(cIdx, 'down')} className="p-1.5 hover:bg-slate-200 rounded text-slate-400"><ArrowDown size={14} /></button>
+                          <button 
+                            type="button"
+                            onClick={(e) => requestDelete(e, 'course', course.id)} 
+                            className="p-1.5 hover:bg-red-100 rounded text-slate-400 hover:text-red-600"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+                      <span className={`text-xs border px-1.5 py-0.5 rounded ${
+                        course.level.startsWith('A') ? 'bg-green-50 text-green-700 border-green-200' :
+                        course.level.startsWith('B') ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        'bg-purple-50 text-purple-700 border-purple-200'
+                      }`}>
+                        {course.level}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 text-xs font-normal">
+                    <span className="flex items-center gap-1 bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100">
+                      <Star size={10} /> {t.avgRating}: {cStats.avgRating}
+                    </span>
+                    <span className="flex items-center gap-1 bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-100">
+                      <BarChart3 size={10} /> {t.avgReadiness}: {cStats.avgReadiness}%
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2 space-y-3">
+                  {course.modules.map((module, mIdx) => {
+                     const mStats = getModuleStats(module.lessons);
+                     return (
+                      <div key={module.id}>
+                        <div className="flex items-center justify-between group">
+                          <button 
+                            onClick={() => toggleModule(module.id)}
+                            className="flex-1 flex items-center gap-2 p-2 hover:bg-slate-50 rounded text-sm font-medium text-slate-600 text-left"
+                          >
+                            {expandedModules[module.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            <span className="truncate">{module.title}</span>
+                          </button>
+                          {canEditContent && (
+                            <div className="hidden group-hover:flex items-center gap-1 mr-2">
+                              <button onClick={() => initiateEditModule(course.id, module)} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600"><PenLine size={12} /></button>
+                              <button onClick={() => onMoveModule?.(course.id, mIdx, 'up')} className="p-1 hover:bg-slate-100 rounded text-slate-400"><ArrowUp size={12} /></button>
+                              <button onClick={() => onMoveModule?.(course.id, mIdx, 'down')} className="p-1 hover:bg-slate-100 rounded text-slate-400"><ArrowDown size={12} /></button>
+                              <button 
+                                type="button"
+                                onClick={(e) => requestDelete(e, 'module', course.id, module.id)} 
+                                className="p-1 hover:bg-red-100 rounded text-slate-400 hover:text-red-600"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="px-8 flex gap-2 text-[10px] text-slate-400 mb-1">
+                           <span>{t.avgRating}: {mStats.avgRating}</span>
+                           <span>{t.avgReadiness}: {mStats.avgReadiness}%</span>
+                        </div>
+                        
+                        {expandedModules[module.id] && (
+                          <div className="ml-6 mt-1 space-y-1 pl-2 border-l border-slate-200">
+                            {module.lessons.map((lesson, lIdx) => (
+                              <div key={lesson.id} className="group flex items-center gap-1 pr-1">
+                                <button
+                                  onClick={() => handleLessonSelect(course.id, module.id, lesson)}
+                                  className={`flex-1 text-left text-sm p-2 rounded flex items-center gap-2 ${
+                                    selectedLesson?.lesson.id === lesson.id 
+                                    ? 'bg-indigo-50 text-indigo-700 font-medium' 
+                                    : 'text-slate-500 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <div className={`w-2 h-2 rounded-full ${lesson.status === 'published' ? 'bg-green-400' : 'bg-amber-400'}`} />
+                                  <span className="truncate">{lesson.title}</span>
+                                </button>
+                                {canEditContent && (
+                                  <div className="hidden group-hover:flex items-center gap-1">
+                                      <div className="flex flex-col">
+                                          <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'up')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowUp size={10} /></button>
+                                          <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'down')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowDown size={10} /></button>
+                                      </div>
+                                      <button 
+                                        type="button"
+                                        onClick={(e) => requestDelete(e, 'lesson', course.id, module.id, lesson.id)} 
+                                        className="text-slate-300 hover:text-red-500 p-1"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {canEditContent && (
+                              <button 
+                                onClick={() => onAddLesson && onAddLesson(course.id, module.id)}
+                                className="text-xs text-indigo-500 hover:underline px-2 py-1 mt-1"
+                              >
+                                {t.addLesson}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {canEditContent && (
+                    <button 
+                      onClick={() => onAddModule && onAddModule(course.id)}
+                      className="w-full text-xs text-slate-400 border border-dashed border-slate-200 p-2 rounded hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Plus size={12} /> {t.addModule}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="w-2/3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+        {selectedLesson ? (
+          <>
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div className="flex items-center gap-3">
+                   {canSetReadiness && (
+                       <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-slate-300 group">
+                           <ReadinessControl 
+                              value={selectedLesson.lesson.readiness || 0}
+                              onChange={(val) => updateReadiness(val)}
+                           />
+                       </div>
+                   )}
+                   <h2 className="font-bold text-lg text-slate-800">{selectedLesson.lesson.title}</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                    {canRate && (
+                        <div className="flex gap-0.5 mr-4">
+                            {[1, 2, 3, 4, 5].map(star => (
+                                <button 
+                                  key={star} 
+                                  onClick={() => handleRate(star)}
+                                  className={`hover:scale-110 transition-transform ${selectedLesson.lesson.rating && selectedLesson.lesson.rating >= star ? 'text-amber-400' : 'text-slate-300'}`}
+                                >
+                                    <Star size={16} fill={selectedLesson.lesson.rating && selectedLesson.lesson.rating >= star ? "currentColor" : "none"} />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {canEditContent && (
+                        !isEditing ? (
+                            <button 
+                                onClick={() => setIsEditing(true)}
+                                className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-indigo-700"
+                            >
+                                <Edit3 size={16} /> {t.edit}
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={handleSaveContent}
+                                className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700"
+                            >
+                                <CheckCircle size={16} /> {t.saveChanges}
+                            </button>
+                        )
+                    )}
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                {selectedLesson.lesson.blocks.length === 0 && (
+                    <div className="text-center py-20 text-slate-400">
+                        <p>{t.draft}</p>
+                        {isEditing && <p className="text-sm mt-2">Use the tools below to add content.</p>}
+                    </div>
+                )}
+                {selectedLesson.lesson.blocks.map((block, index) => (
+                    <div key={block.id} className={`relative group ${isEditing ? 'pl-8' : ''}`}>
+                        {isEditing && (
+                            <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  onClick={() => handleMoveBlock(index, 'up')} 
+                                  disabled={index === 0}
+                                  className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400"
+                                >
+                                  <ArrowUp size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteBlock(block.id)}
+                                  className="p-1 text-slate-400 hover:text-red-600"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleMoveBlock(index, 'down')} 
+                                  disabled={index === selectedLesson.lesson.blocks.length - 1}
+                                  className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400"
+                                >
+                                  <ArrowDown size={14} />
+                                </button>
+                            </div>
+                        )}
+
+                        {isEditing ? (
+                            <div className="border border-indigo-100 rounded-lg bg-indigo-50/30 overflow-hidden">
+                                {block.type === ContentType.TEXT ? (
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-1 border-b border-indigo-100 bg-indigo-50 px-2 py-1">
+                                            <button onClick={() => insertFormat(block.id, 'b')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="Bold"><Bold size={14} /></button>
+                                            <button onClick={() => insertFormat(block.id, 'i')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="Italic"><Italic size={14} /></button>
+                                            <button onClick={() => insertFormat(block.id, 'ul')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="List"><List size={14} /></button>
+                                        </div>
+                                        <textarea 
+                                            id={`textarea-${block.id}`}
+                                            value={block.content}
+                                            onChange={(e) => handleUpdateBlock(block.id, e.target.value)}
+                                            className="w-full h-32 p-3 focus:outline-none text-sm bg-white text-slate-900"
+                                            placeholder="Enter text here... use HTML tags or buttons above."
+                                        />
+                                    </div>
+                                ) : block.type === ContentType.QUIZ ? (
+                                    <div className="p-3">
+                                        <div className="mb-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Question</label>
+                                            <input 
+                                                type="text" 
+                                                value={block.content} 
+                                                onChange={(e) => handleUpdateBlock(block.id, e.target.value)}
+                                                className="w-full p-2 border border-slate-300 rounded text-sm mt-1 bg-white text-slate-900 placeholder:text-slate-400"
+                                                placeholder="Enter question..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between items-end mb-1">
+                                                <label className="text-xs font-bold text-slate-500 uppercase">Options</label>
+                                                <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">Select correct answer</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {block.metadata?.options?.map((opt: string, i: number) => (
+                                                    <div key={i} className="flex gap-2 items-center">
+                                                        <input 
+                                                          type="radio" 
+                                                          name={`quiz-correct-${block.id}`}
+                                                          checked={block.metadata?.correctIndex === i}
+                                                          onChange={() => setQuizCorrectAnswer(block.id, i)}
+                                                          className="mt-0.5 accent-indigo-600 w-4 h-4 cursor-pointer"
+                                                          title="Mark as correct answer"
+                                                        />
+                                                        <input 
+                                                            type="text"
+                                                            value={opt}
+                                                            onChange={(e) => handleQuizOptionChange(block.id, i, e.target.value)}
+                                                            className={`flex-1 p-1.5 text-sm border rounded bg-white text-slate-900 placeholder:text-slate-400 ${
+                                                              block.metadata?.correctIndex === i ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-300'
+                                                            }`}
+                                                        />
+                                                        <button onClick={() => removeQuizOption(block.id, i)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
+                                                    </div>
+                                                ))}
+                                                <button onClick={() => addQuizOption(block.id)} className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1 mt-2">
+                                                    <Plus size={12} /> Add Option
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : block.type === ContentType.IMAGE ? (
+                                    <div className="p-3">
+                                        <div className="flex gap-2 mb-2">
+                                           {block.content && block.content.startsWith('data:') && (
+                                               <img src={block.content} alt="Preview" className="h-20 w-20 object-cover rounded border border-slate-200" />
+                                           )}
+                                           <div className="flex-1 flex flex-col justify-center">
+                                                <label className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded cursor-pointer hover:bg-slate-50 transition-colors w-fit mb-2">
+                                                    <Upload size={14} className="text-slate-500" />
+                                                    <span className="text-sm text-slate-700">Upload Image File</span>
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => handleImageUpload(block.id, e)}
+                                                    />
+                                                </label>
+                                                <p className="text-xs text-slate-400">or paste URL below</p>
+                                           </div>
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            value={block.content} 
+                                            onChange={(e) => handleUpdateBlock(block.id, e.target.value)}
+                                            className="w-full p-2 border border-slate-300 rounded text-sm bg-white text-slate-900 placeholder:text-slate-400"
+                                            placeholder="Image URL..."
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="p-3">
+                                        <input 
+                                            type="text" 
+                                            value={block.content} 
+                                            onChange={(e) => handleUpdateBlock(block.id, e.target.value)}
+                                            className="w-full p-2 border border-slate-300 rounded text-sm bg-white text-slate-900 placeholder:text-slate-400"
+                                            placeholder="Content..."
+                                        />
+                                    </div>
+                                )}
+                                <div className="px-3 pb-1 text-[10px] text-indigo-400 font-mono uppercase text-right">{block.type}</div>
+                            </div>
+                        ) : (
+                            <div className="prose max-w-none text-slate-900">
+                                {block.type === ContentType.TEXT && (
+                                    <div className="whitespace-pre-wrap bg-white rounded-lg p-4 shadow-sm border border-slate-100" dangerouslySetInnerHTML={{ __html: block.content }} />
+                                )}
+                                {block.type === ContentType.IMAGE && (
+                                    <img src={block.content} alt="Lesson content" className="rounded-lg shadow-sm max-h-96 object-cover bg-white" />
+                                )}
+                                {block.type === ContentType.NOTE && (
+                                    <div className="bg-amber-50 border-l-4 border-amber-400 p-4 text-amber-800 rounded-r text-sm italic shadow-sm">
+                                        <span className="font-bold block not-italic mb-1">{t.teacherNote}:</span>
+                                        {block.content}
+                                    </div>
+                                )}
+                                {block.type === ContentType.QUIZ && (
+                                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
+                                        <h4 className="font-bold mb-2 flex items-center gap-2 text-slate-700">
+                                            <CheckCircle size={16} /> {block.content}
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {block.metadata?.options?.map((opt: string, i: number) => (
+                                                <div key={i} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${
+                                                    canEditContent && block.metadata?.correctIndex === i ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200 hover:bg-slate-50'
+                                                }`}>
+                                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                                        canEditContent && block.metadata?.correctIndex === i ? 'border-green-500' : 'border-slate-300'
+                                                    }`}>
+                                                        {canEditContent && block.metadata?.correctIndex === i && <div className="w-2 h-2 bg-green-500 rounded-full" />}
+                                                    </div>
+                                                    <span className={`text-sm ${canEditContent && block.metadata?.correctIndex === i ? 'font-medium text-green-800' : ''}`}>{opt}</span>
+                                                    {canEditContent && block.metadata?.correctIndex === i && <span className="text-[10px] text-green-600 font-bold uppercase ml-auto px-1">Correct</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {isEditing && (
+                <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2 overflow-x-auto">
+                    <button onClick={() => handleAddBlock(ContentType.TEXT)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap">
+                        <FileText size={16} /> {t.addText}
+                    </button>
+                    <button onClick={() => handleAddBlock(ContentType.IMAGE)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap">
+                        <ImageIcon size={16} /> {t.addImage}
+                    </button>
+                    <button onClick={() => handleAddBlock(ContentType.QUIZ)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap">
+                         <CheckCircle size={16} /> Quiz
+                    </button>
+                    <button onClick={() => handleAddBlock(ContentType.NOTE)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-amber-600 transition-colors whitespace-nowrap">
+                        <Edit3 size={16} /> {t.addNote}
+                    </button>
+                    <div className="w-px h-8 bg-slate-300 mx-1" />
+                    <button onClick={handleImportDoc} className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-100 transition-colors whitespace-nowrap">
+                        <FileUp size={16} /> {t.importWord}
+                    </button>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileUpload} 
+                        accept=".docx" 
+                        className="hidden" 
+                    />
+                </div>
+            )}
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+            <BookOpen size={48} className="mb-4 text-slate-200" />
+            <p className="text-lg font-medium text-slate-500">{t.lessonPlan}</p>
+            <p className="text-sm">{t.selectLesson}</p>
+          </div>
+        )}
+      </div>
+
+      {deleteConfirmation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-96 shadow-xl border border-slate-100 transform transition-all scale-100">
+                <div className="flex items-center gap-3 text-red-600 mb-4">
+                    <div className="bg-red-100 p-2 rounded-full">
+                        <AlertTriangle size={24} />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900">{t.delete}</h3>
+                </div>
+                <p className="text-slate-600 mb-6">
+                    {t.confirmDelete}
+                </p>
+                <div className="flex gap-3 justify-end">
+                    <button 
+                        onClick={() => setDeleteConfirmation(null)}
+                        className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+                    >
+                        {t.cancel}
+                    </button>
+                    <button 
+                        onClick={confirmDelete}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md shadow-red-100"
+                    >
+                        {t.delete}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {editingItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-96 shadow-xl border border-slate-100">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-slate-900">
+                      {editingItem.type === 'course' ? t.edit : t.rename}
+                    </h3>
+                    <button onClick={() => setEditingItem(null)} className="text-slate-400 hover:text-slate-600">
+                        <X size={20} />
+                    </button>
+                </div>
+                <form onSubmit={submitEdit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+                      <input 
+                          autoFocus
+                          type="text" 
+                          value={editingItem.title}
+                          onChange={e => setEditingItem({...editingItem, title: e.target.value})}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white"
+                      />
+                    </div>
+
+                    {editingItem.type === 'course' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Level (CEFR)</label>
+                          <select 
+                             value={editingItem.level}
+                             onChange={e => setEditingItem({...editingItem, level: e.target.value as Course['level']})}
+                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white"
+                          >
+                            <option value="A1">A1 (Beginner)</option>
+                            <option value="A2">A2 (Elementary)</option>
+                            <option value="B1">B1 (Intermediate)</option>
+                            <option value="B2">B2 (Upper-Intermediate)</option>
+                            <option value="C1">C1 (Advanced)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Target Audience</label>
+                          <select 
+                             value={editingItem.audience}
+                             onChange={e => setEditingItem({...editingItem, audience: e.target.value as Course['targetAudience']})}
+                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white"
+                          >
+                            <option value="kids">Kids</option>
+                            <option value="adults">Adults</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="flex gap-2 justify-end mt-6">
+                        <button 
+                            type="button" 
+                            onClick={() => setEditingItem(null)} 
+                            className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            {t.cancel}
+                        </button>
+                        <button 
+                            type="submit" 
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                            {t.saveChanges}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      )}
+    </div>
+  );
+};
