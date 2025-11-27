@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserRole, Language } from '../types';
-import { LogOut, BookOpen, Users, LayoutDashboard, MessageSquare, GraduationCap, Activity } from 'lucide-react';
+import { LogOut, BookOpen, Users, LayoutDashboard, MessageSquare, GraduationCap, Activity, Database, WifiOff } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface LayoutProps {
@@ -9,9 +9,10 @@ interface LayoutProps {
   onLogout: () => void;
   currentPage: string;
   onNavigate: (page: string) => void;
+  isDbConnected: boolean;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, onNavigate }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, onNavigate, isDbConnected }) => {
   const { t, language, setLanguage } = useLanguage();
   
   const NavItem = ({ id, label, icon: Icon, roles }: { id: string, label: string, icon: any, roles: UserRole[] }) => {
@@ -72,6 +73,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
         </nav>
 
         <div className="p-4 border-t border-slate-100">
+           {/* DB Status Indicator */}
+           <div className={`mb-4 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
+             isDbConnected ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-orange-50 text-orange-700 border border-orange-200'
+           }`}>
+             {isDbConnected ? <Database size={14} /> : <WifiOff size={14} />}
+             <span>{isDbConnected ? 'DB Connected' : 'Demo / Offline'}</span>
+           </div>
+
           <div className="flex items-center gap-3 mb-4 px-2">
             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold">
               {user.name.charAt(0)}

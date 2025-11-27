@@ -1,55 +1,111 @@
 import { User, Course, ActivityLogEntry } from '../types';
+import { supabase } from './supabaseClient.ts';
 import { MOCK_USERS, MOCK_COURSES } from './mockData';
 
-const STORAGE_KEYS = {
-  USERS: 'lms_users',
-  COURSES: 'lms_courses',
-  LOGS: 'lms_logs',
-  CURRENT_USER: 'lms_current_user'
-};
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 export const dataService = {
-  async init(): Promise<{ users: User[], courses: Course[], logs: ActivityLogEntry[] }> {
-    await delay(600);
-    
-    const usersRaw = localStorage.getItem(STORAGE_KEYS.USERS);
-    const coursesRaw = localStorage.getItem(STORAGE_KEYS.COURSES);
-    const logsRaw = localStorage.getItem(STORAGE_KEYS.LOGS);
+  async init(): Promise<{ users: User[], courses: Course[], logs: ActivityLogEntry[], isConnected: boolean }> {
+    try {
+      console.log("Attempting to connect to Supabase...");
+      
+      // Fetch Users
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('*');
+      
+      if (usersError) {
+        console.warn("Supabase Users Error (Using Mocks):", usersError.message);
+        throw usersError;
+      }
 
-    const users = usersRaw ? JSON.parse(usersRaw) : MOCK_USERS;
-    const courses = coursesRaw ? JSON.parse(coursesRaw) : MOCK_COURSES;
-    const logs = logsRaw ? JSON.parse(logsRaw) : [];
+      // Fetch Courses
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select('*');
 
-    if (!usersRaw) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(MOCK_USERS));
-    if (!coursesRaw) localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(MOCK_COURSES));
+      if (coursesError) {
+        console.warn("Supabase Courses Error:", coursesError.message);
+        throw coursesError;
+      }
 
-    return { users, courses, logs };
+      // Fetch Logs
+      const { data: logsData, error: logsError } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(100);
+
+      // --- AUTO-SEEDING LOGIC ---
+      if ((!usersData || usersData.length === 0) && (!coursesData || coursesData.length === 0)) {
+        console.log("Connected to Supabase, but DB is empty. Seeding with initial data...");
+        await this.saveUsers(MOCK_USERS);
+        await this.saveCourses(MOCK_COURSES);
+        return { users: MOCK_USERS, courses: MOCK_COURSES, logs: [], isConnected: true };
+      }
+
+      console.log("Successfully loaded data from Supabase.");
+      return { 
+        users: usersData || [], 
+        courses: coursesData || [], 
+        logs: logsData || [],
+        isConnected: true
+      };
+
+    } catch (e) {
+      console.log("Falling back to local Mock Data mode.");
+      return { users: MOCK_USERS, courses: MOCK_COURSES, logs: [], isConnected: false };
+    }
   },
 
   async saveUsers(users: User[]): Promise<void> {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    if (users.length === 0) return;
+    const { error } = await supabase.from('users').upsert(users);
+    if (error) console.error("Error saving users to DB:", error.message);
   },
 
   async saveCourses(courses: Course[]): Promise<void> {
-    localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(courses));
+    if (courses.length === 0) return;
+    
+    const payload = courses.map(c => ({
+      id: c.id,
+      title: c.title,
+      level: c.level,
+      targetAudience: c.targetAudience, 
+      modules: c.modules 
+    }));
+    
+    const { error } = await supabase.from('courses').upsert(payload);
+    if (error) console.error("Error saving courses to DB:", error.message);
   },
 
   async saveLogs(logs: ActivityLogEntry[]): Promise<void> {
-    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
+    if (logs.length === 0) return;
+    
+    const recentLogs = logs.slice(0, 5).map(log => ({
+        id: log.id,
+        userId: log.userId,
+        userName: log.userName,
+        action: log.action,
+        targetType: log.targetType,
+        targetTitle: log.targetTitle,
+        details: log.details,
+        timestamp: log.timestamp,
+        contextIds: log.contextIds 
+    }));
+    
+    const { error } = await supabase.from('activity_logs').upsert(recentLogs);
+    if (error) console.error("Error saving logs to DB:", error.message);
   },
 
   getCurrentUser(): User | null {
-    const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    const saved = localStorage.getItem('lms_current_user');
     return saved ? JSON.parse(saved) : null;
   },
 
   persistCurrentUser(user: User | null) {
     if (user) {
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+      localStorage.setItem('lms_current_user', JSON.stringify(user));
     } else {
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      localStorage.removeItem('lms_current_user');
     }
   }
 };

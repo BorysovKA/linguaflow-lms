@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Layout } from './components/Layout';
 import { Login } from './components/Login';
 import { UsersList } from './components/UsersList';
 import { Curriculum } from './components/Curriculum';
-import { AIArchitect } from './components/AIArchitect';
-import { ActivityLog } from './components/ActivityLog';
+import { StudentClasses } from './components/StudentClasses';
 import { User, Course, Lesson, CourseModule, ActivityLogEntry, ActionType, TargetType } from './types';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { BookOpen, Layers, FileText, Loader2, Database, BarChart3 } from 'lucide-react';
 import { dataService } from './services/dataService';
+
+// Lazy load heavy components
+const AIArchitect = React.lazy(() => import('./components/AIArchitect').then(module => ({ default: module.AIArchitect })));
+const ActivityLog = React.lazy(() => import('./components/ActivityLog').then(module => ({ default: module.ActivityLog })));
 
 const MainApp: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -16,6 +19,7 @@ const MainApp: React.FC = () => {
   const { t } = useLanguage();
   
   const [isLoading, setIsLoading] = useState(true);
+  const [isDbConnected, setIsDbConnected] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
@@ -27,6 +31,7 @@ const MainApp: React.FC = () => {
         setUsers(data.users);
         setCourses(data.courses);
         setActivityLog(data.logs);
+        setIsDbConnected(data.isConnected);
 
         const savedUser = dataService.getCurrentUser();
         if (savedUser) {
@@ -98,6 +103,7 @@ const MainApp: React.FC = () => {
     dataService.persistCurrentUser(u);
     if (u.role === 'admin') setCurrentPage('users');
     else if (u.role === 'methodist') setCurrentPage('curriculum');
+    else if (u.role === 'student' || u.role === 'teacher') setCurrentPage('my-classes');
     else setCurrentPage('curriculum');
   };
 
@@ -276,6 +282,22 @@ const MainApp: React.FC = () => {
       }));
   };
 
+  const handleNavigateToCourse = (courseId: string) => {
+      // Find the first module/lesson to open
+      const course = courses.find(c => c.id === courseId);
+      if (course) {
+          const firstModule = course.modules[0];
+          const firstLesson = firstModule?.lessons[0];
+          
+          setCurriculumNavigation({
+              courseId,
+              moduleId: firstModule?.id,
+              lessonId: firstLesson?.id
+          });
+          setCurrentPage('curriculum');
+      }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-400 gap-4">
@@ -379,24 +401,30 @@ const MainApp: React.FC = () => {
           />
         );
       case 'architect':
-        return <AIArchitect />;
+        return (
+            <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-indigo-600" /></div>}>
+                <AIArchitect />
+            </Suspense>
+        );
       case 'activity':
         return (
-            <ActivityLog 
-                logs={activityLog} 
-                users={users} 
-                onNavigate={(ctx) => {
-                    setCurriculumNavigation(ctx);
-                    setCurrentPage('curriculum');
-                }}
-            />
+            <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-indigo-600" /></div>}>
+                <ActivityLog 
+                    logs={activityLog} 
+                    users={users} 
+                    onNavigate={(ctx) => {
+                        setCurriculumNavigation(ctx);
+                        setCurrentPage('curriculum');
+                    }}
+                />
+            </Suspense>
         );
       case 'my-classes':
         return (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                <BarChart3 size={64} className="mb-4 text-slate-200" />
-                <h2 className="text-xl font-bold text-slate-600">{t.comingSoon}</h2>
-            </div>
+            <StudentClasses 
+                courses={courses}
+                onNavigateToCourse={handleNavigateToCourse}
+            />
         );
       default:
         return <div>Page not found</div>;
@@ -412,6 +440,7 @@ const MainApp: React.FC = () => {
           setCurriculumNavigation(null);
           setCurrentPage(page);
       }}
+      isDbConnected={isDbConnected}
     >
       {renderContent()}
     </Layout>
