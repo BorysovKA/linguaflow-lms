@@ -97,6 +97,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
             <LogOut size={16} />
             {t.signOut}
           </button>
+          <div className="text-[10px] text-slate-300 text-center mt-2">v1.1 Methodist Update</div>
         </div>
       </aside>
 
