@@ -1,20 +1,17 @@
-/// <reference types="vite/client" />
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
 
-interface ImportMetaEnv {
-  readonly VITE_SUPABASE_URL: string
-  readonly VITE_SUPABASE_ANON_KEY: string
-  // add other env variables here if needed
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
-}
-
-// Augment the NodeJS namespace to include API_KEY in ProcessEnv
-// This avoids "Cannot redeclare block-scoped variable 'process'" error if @types/node is present
-declare namespace NodeJS {
-  interface ProcessEnv {
-    API_KEY: string;
-    [key: string]: string | undefined;
-  }
-}
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
+    plugins: [react()],
+    define: {
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
+      'process.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || ''),
+      'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || ''),
+    },
+    build: {
+      outDir: 'dist',
+    },
+  };
+});
