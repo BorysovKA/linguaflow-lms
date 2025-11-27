@@ -6,7 +6,7 @@ import { Curriculum } from './components/Curriculum';
 import { StudentClasses } from './components/StudentClasses';
 import { User, Course, Lesson, CourseModule, ActivityLogEntry, ActionType, TargetType } from './types';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
-import { BookOpen, Layers, FileText, Loader2, Database, BarChart3 } from 'lucide-react';
+import { BookOpen, Layers, FileText, Loader2, Database, Sparkles } from 'lucide-react';
 import { dataService } from './services/dataService';
 
 // Lazy load heavy components
@@ -364,7 +364,7 @@ const MainApp: React.FC = () => {
                             </button>
                         </div>
                         <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10 group-hover:scale-110 transition-transform">
-                             <BookOpen size={150} />
+                             <Sparkles size={150} />
                         </div>
                      </div>
                 </div>

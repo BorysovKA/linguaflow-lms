@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserRole, Language } from '../types';
-import { LogOut, BookOpen, Users, LayoutDashboard, MessageSquare, GraduationCap, Activity, Database, WifiOff } from 'lucide-react';
+import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface LayoutProps {
@@ -68,7 +68,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
 
           <div>
              <p className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{t.planning}</p>
-             <NavItem id="architect" label={t.aiArchitect} icon={MessageSquare} roles={['admin', 'methodist']} />
+             <NavItem id="architect" label={t.aiArchitect} icon={Sparkles} roles={['admin', 'methodist']} />
           </div>
         </nav>
 
