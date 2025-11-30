@@ -11,6 +11,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   allowedContent?: string[]; // IDs of Courses, Modules, or Lessons allowed
+  deniedContent?: string[]; // IDs explicitly blocked (even if parent is allowed)
   groups?: string[]; // IDs of groups the user belongs to
 }
 
@@ -41,8 +42,9 @@ export interface Lesson {
   title: string;
   durationMinutes: number;
   blocks: ContentBlock[];
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'pending_deletion';
   authorId?: string; // ID of the teacher who created it
+  deletedBy?: string; // ID of the user who requested deletion
   rating?: number;
   readiness?: number;
 }
@@ -68,7 +70,7 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename' | 'publish' | 'access_grant';
+export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename' | 'publish' | 'access_grant' | 'restore' | 'access_deny';
 export type TargetType = 'course' | 'module' | 'lesson' | 'settings' | 'group' | 'user';
 
 export interface ActivityLogEntry {

@@ -43,6 +43,16 @@ export const useUsers = (
   const updateUserAccess = (userId: string, allowedContent: string[]) => {
       updateUser(userId, { allowedContent });
   };
+  
+  const denyUserAccess = (userId: string, contentId: string) => {
+      const user = users.find(u => u.id === userId);
+      if (!user) return;
+      
+      const currentDenied = user.deniedContent || [];
+      if (!currentDenied.includes(contentId)) {
+          updateUser(userId, { deniedContent: [...currentDenied, contentId] });
+      }
+  };
 
   const deleteUser = (id: string) => {
     setUsers(prev => prev.filter(u => u.id !== id));
@@ -94,6 +104,7 @@ export const useUsers = (
     updateUser,
     deleteUser,
     updateUserAccess,
+    denyUserAccess,
     createGroup,
     deleteGroup,
     updateGroupAccess,

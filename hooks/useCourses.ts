@@ -99,15 +99,48 @@ export const useCourses = (
     }));
   };
 
-  const deleteLesson = (courseId: string, moduleId: string, lessonId: string) => {
-    logAction(currentUser, 'delete', 'lesson', 'Lesson', undefined, { courseId, moduleId, lessonId });
-    setCourses(prev => prev.map(c => c.id !== courseId ? c : {
-       ...c,
-       modules: c.modules.map(m => m.id !== moduleId ? m : {
-           ...m,
-           lessons: m.lessons.filter(l => l.id !== lessonId)
-       })
-   }));
+  // Soft delete for teachers, hard delete for admins (when force=true)
+  const deleteLesson = (courseId: string, moduleId: string, lessonId: string, force: boolean = false) => {
+    if (force) {
+        // Hard Delete
+        logAction(currentUser, 'delete', 'lesson', 'Lesson', undefined, { courseId, moduleId, lessonId });
+        setCourses(prev => prev.map(c => c.id !== courseId ? c : {
+           ...c,
+           modules: c.modules.map(m => m.id !== moduleId ? m : {
+               ...m,
+               lessons: m.lessons.filter(l => l.id !== lessonId)
+           })
+       }));
+    } else {
+        // Soft Delete (Mark as pending)
+        logAction(currentUser, 'delete', 'lesson', 'Lesson (Pending)', 'Requested deletion', { courseId, moduleId, lessonId });
+        setCourses(prev => prev.map(c => c.id !== courseId ? c : {
+            ...c,
+            modules: c.modules.map(m => m.id !== moduleId ? m : {
+                ...m,
+                lessons: m.lessons.map(l => l.id !== lessonId ? l : { 
+                    ...l, 
+                    status: 'pending_deletion',
+                    deletedBy: currentUser?.id
+                })
+            })
+        }));
+    }
+  };
+
+  const restoreLesson = (courseId: string, moduleId: string, lessonId: string) => {
+      logAction(currentUser, 'restore', 'lesson', 'Lesson', 'Restored from pending deletion', { courseId, moduleId, lessonId });
+      setCourses(prev => prev.map(c => c.id !== courseId ? c : {
+          ...c,
+          modules: c.modules.map(m => m.id !== moduleId ? m : {
+              ...m,
+              lessons: m.lessons.map(l => l.id !== lessonId ? l : { 
+                  ...l, 
+                  status: 'draft', // Revert to draft
+                  deletedBy: undefined
+              })
+          })
+      }));
   };
 
   // --- Modules ---
@@ -200,6 +233,7 @@ export const useCourses = (
     updateLesson,
     renameLesson,
     deleteLesson,
+    restoreLesson,
     moveLesson,
     addModule,
     renameModule,

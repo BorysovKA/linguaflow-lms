@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Course, Lesson, ContentBlock, ContentType, UserRole, User, Group } from '../types';
-import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen, Loader2, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen, Loader2, RefreshCw, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface CurriculumProps {
@@ -24,7 +24,8 @@ interface CurriculumProps {
   onRenameLesson?: (courseId: string, moduleId: string, lessonId: string, newTitle: string) => void;
   onDeleteCourse?: (id: string) => void;
   onDeleteModule?: (courseId: string, moduleId: string) => void;
-  onDeleteLesson?: (courseId: string, moduleId: string, lessonId: string) => void;
+  onDeleteLesson?: (courseId: string, moduleId: string, lessonId: string, force?: boolean) => void;
+  onRestoreLesson?: (courseId: string, moduleId: string, lessonId: string, deletedBy?: string) => void;
   onPublishLesson?: (courseId: string, moduleId: string, lessonId: string, isPublished: boolean) => void;
 }
 
@@ -49,6 +50,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   onDeleteCourse,
   onDeleteModule,
   onDeleteLesson,
+  onRestoreLesson,
   onPublishLesson
 }) => {
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
@@ -63,6 +65,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     isOpen: boolean;
     type: 'course' | 'module' | 'lesson';
     ids: { id1: string, id2?: string, id3?: string };
+    isSoftDelete: boolean;
   } | null>(null);
 
   const [editingItem, setEditingItem] = useState<{
@@ -80,9 +83,11 @@ export const Curriculum: React.FC<CurriculumProps> = ({
 
   // --- VISIBILITY LOGIC ---
   const isContentVisible = (courseId: string, moduleId?: string, lessonId?: string): boolean => {
-      // 1. Check Permissions (Access Control)
       // Admins and Methodists see everything
       if (userRole === 'admin' || userRole === 'methodist') return true;
+
+      // Check denied content (Blocklist) - specific override
+      if (lessonId && user.deniedContent?.includes(lessonId)) return false;
 
       const userAllowed = user.allowedContent || [];
       const groupsAllowed = userGroups.flatMap(g => g.allowedContent);
@@ -103,7 +108,13 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   };
 
   const isDraftVisible = (lesson: Lesson): boolean => {
+      // Admin/Methodist see pending deletions
+      if (lesson.status === 'pending_deletion') {
+          return userRole === 'admin' || userRole === 'methodist';
+      }
+
       if (lesson.status === 'published') return true;
+      
       // Drafts: Visible to Admin, Methodist, or Author
       if (userRole === 'admin' || userRole === 'methodist') return true;
       if (userRole === 'teacher' && lesson.authorId === user.id) return true;
@@ -115,19 +126,17 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       .map(c => {
           // If Course is explicitly allowed, show all. If not, filter modules.
           const isCourseAllowed = isContentVisible(c.id);
-          if (isCourseAllowed) return c; // Show full course
-
+          
           // Filter Modules
           const validModules = c.modules.filter(m => {
-              const isModuleAllowed = isContentVisible(c.id, m.id);
+              const isModuleAllowed = isContentVisible(c.id, m.id) || isCourseAllowed;
               // Show module if allowed, OR if it has allowed lessons
               return isModuleAllowed || m.lessons.some(l => isContentVisible(c.id, m.id, l.id));
           }).map(m => {
-              const isModuleAllowed = isContentVisible(c.id, m.id);
-              if (isModuleAllowed) return m;
-
+              const isModuleAllowed = isContentVisible(c.id, m.id) || isCourseAllowed;
+              
               // Filter Lessons
-              const validLessons = m.lessons.filter(l => isContentVisible(c.id, m.id, l.id) && isDraftVisible(l));
+              const validLessons = m.lessons.filter(l => (isContentVisible(c.id, m.id, l.id) || isModuleAllowed) && isDraftVisible(l));
               return { ...m, lessons: validLessons };
           }).filter(m => m.lessons.length > 0);
 
@@ -170,7 +179,17 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       setExpandedModules({});
   };
 
-  const canEditContent = userRole === 'methodist' || userRole === 'admin';
+  // Permission Logic
+  const canModify = (courseId: string, moduleId?: string) => {
+      if (userRole === 'admin' || userRole === 'methodist') return true;
+      if (userRole === 'teacher') {
+          // Teacher can add/edit if they have access to the parent container
+          if (moduleId) return isContentVisible(courseId, moduleId);
+          return isContentVisible(courseId);
+      }
+      return false;
+  };
+  
   const canPublish = userRole === 'methodist' || userRole === 'admin';
   const canSetReadiness = userRole === 'methodist' || userRole === 'admin';
   const canRate = userRole === 'methodist' || userRole === 'admin' || userRole === 'teacher';
@@ -191,16 +210,22 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   const requestDelete = (e: React.MouseEvent, type: 'course' | 'module' | 'lesson', id1: string, id2?: string, id3?: string) => {
     e.stopPropagation();
     e.preventDefault();
+    
+    // Determine if it's a soft delete (teacher deleting lesson) or hard delete (admin/methodist)
+    // Teachers effectively "Request Deletion" which hides it from them
+    const isSoft = userRole === 'teacher' && type === 'lesson';
+
     setDeleteConfirmation({
       isOpen: true,
       type,
-      ids: { id1, id2, id3 }
+      ids: { id1, id2, id3 },
+      isSoftDelete: isSoft
     });
   };
 
   const confirmDelete = () => {
     if (!deleteConfirmation) return;
-    const { type, ids } = deleteConfirmation;
+    const { type, ids, isSoftDelete } = deleteConfirmation;
 
     if (type === 'course') {
         onDeleteCourse?.(ids.id1);
@@ -211,10 +236,22 @@ export const Curriculum: React.FC<CurriculumProps> = ({
         if (selectedLesson?.moduleId === ids.id2) setSelectedLesson(null);
     }
     if (type === 'lesson' && ids.id2 && ids.id3) {
-        onDeleteLesson?.(ids.id1, ids.id2, ids.id3);
+        // Pass "force = true" if it's NOT a soft delete (Admin/Methodist actually deleting)
+        // Teachers: force = false (soft delete)
+        onDeleteLesson?.(ids.id1, ids.id2, ids.id3, !isSoftDelete);
+        
+        // If teacher soft-deletes the current lesson, unselect it
         if (selectedLesson?.lesson.id === ids.id3) setSelectedLesson(null);
     }
     setDeleteConfirmation(null);
+  };
+
+  const handleRestore = (lesson: Lesson, courseId: string, moduleId: string) => {
+      onRestoreLesson?.(courseId, moduleId, lesson.id, lesson.deletedBy);
+      if (selectedLesson?.lesson.id === lesson.id) {
+          // Update local selection to reflect restored status (optional, usually re-render handles it)
+          setSelectedLesson({ ...selectedLesson, lesson: { ...lesson, status: 'draft', deletedBy: undefined }});
+      }
   };
 
   const handleSaveContent = () => {
@@ -356,7 +393,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
           <div className="flex gap-1">
              <button onClick={expandAll} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded border border-transparent hover:border-slate-200 transition-all" title="Expand All"><FolderOpen size={16} /></button>
              <button onClick={collapseAll} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded border border-transparent hover:border-slate-200 transition-all" title="Collapse All"><FolderClosed size={16} /></button>
-             {canEditContent && <button onClick={onAddCourse} className="ml-1 text-xs bg-indigo-600 text-white hover:bg-indigo-700 px-2 py-1.5 rounded transition-colors flex items-center gap-1 shadow-sm"><Plus size={14} /> {t.addCourse}</button>}
+             {canModify('all') && <button onClick={onAddCourse} className="ml-1 text-xs bg-indigo-600 text-white hover:bg-indigo-700 px-2 py-1.5 rounded transition-colors flex items-center gap-1 shadow-sm"><Plus size={14} /> {t.addCourse}</button>}
           </div>
         </div>
         
@@ -368,13 +405,14 @@ export const Curriculum: React.FC<CurriculumProps> = ({
           )}
           {visibleCourses.map((course, cIdx) => {
             const cStats = getCourseStats(course);
+            const canModifyCourse = canModify(course.id);
             return (
               <div key={course.id} className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
                 <div className="bg-slate-50 p-3 font-semibold text-slate-700">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-base truncate pr-2" title={course.title}>{course.title}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {canEditContent && (
+                      {canModifyCourse && (
                         <>
                           <button 
                             onClick={() => initiateEditCourse(course)} 
@@ -415,6 +453,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                 <div className="p-2 space-y-3">
                   {course.modules.map((module, mIdx) => {
                      const mStats = getModuleStats(module.lessons);
+                     const canModifyModule = canModify(course.id, module.id);
                      return (
                       <div key={module.id}>
                         <div className="flex items-center justify-between group">
@@ -425,7 +464,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                             {expandedModules[module.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             <span className="truncate">{module.title}</span>
                           </button>
-                          {canEditContent && (
+                          {canModifyModule && (
                             <div className="hidden group-hover:flex items-center gap-1 mr-2 flex-shrink-0">
                               <button onClick={() => initiateEditModule(course.id, module)} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600"><PenLine size={12} /></button>
                               <button onClick={() => onMoveModule?.(course.id, mIdx, 'up')} className="p-1 hover:bg-slate-100 rounded text-slate-400"><ArrowUp size={12} /></button>
@@ -457,32 +496,43 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                     selectedLesson?.lesson.id === lesson.id 
                                     ? 'bg-indigo-50 text-indigo-700 font-medium' 
                                     : 'text-slate-500 hover:text-slate-900'
-                                  }`}
+                                  } ${lesson.status === 'pending_deletion' ? 'opacity-75 bg-red-50/50' : ''}`}
                                 >
                                   {/* Status indicator */}
-                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${lesson.status === 'published' ? 'bg-green-400' : 'bg-slate-300'}`} title={lesson.status} />
-                                  <span className={`truncate ${lesson.status === 'draft' ? 'italic text-slate-400' : ''}`}>
+                                  <div 
+                                    className={`w-2 h-2 rounded-full flex-shrink-0 
+                                      ${lesson.status === 'published' ? 'bg-green-400' 
+                                        : lesson.status === 'pending_deletion' ? 'bg-red-500' 
+                                        : 'bg-slate-300'}`} 
+                                    title={lesson.status} 
+                                  />
+                                  <span className={`truncate ${lesson.status === 'draft' ? 'italic text-slate-400' : ''} ${lesson.status === 'pending_deletion' ? 'text-red-600 line-through decoration-red-300' : ''}`}>
                                       {lesson.title}
                                   </span>
                                 </button>
-                                {canEditContent && (
+                                {canModifyModule && (
                                   <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
-                                      <div className="flex flex-col">
-                                          <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'up')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowUp size={10} /></button>
-                                          <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'down')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowDown size={10} /></button>
-                                      </div>
-                                      <button 
-                                        type="button"
-                                        onClick={() => initiateEditLesson(course.id, module.id, lesson)} 
-                                        className="text-slate-300 hover:text-indigo-600 p-1"
-                                        title="Rename Lesson"
-                                      >
-                                          <PenLine size={12} />
-                                      </button>
+                                      {lesson.status !== 'pending_deletion' && (
+                                        <>
+                                          <div className="flex flex-col">
+                                              <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'up')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowUp size={10} /></button>
+                                              <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'down')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowDown size={10} /></button>
+                                          </div>
+                                          <button 
+                                            type="button"
+                                            onClick={() => initiateEditLesson(course.id, module.id, lesson)} 
+                                            className="text-slate-300 hover:text-indigo-600 p-1"
+                                            title="Rename Lesson"
+                                          >
+                                              <PenLine size={12} />
+                                          </button>
+                                        </>
+                                      )}
                                       <button 
                                         type="button"
                                         onClick={(e) => requestDelete(e, 'lesson', course.id, module.id, lesson.id)} 
                                         className="text-slate-300 hover:text-red-500 p-1"
+                                        title="Delete"
                                       >
                                         <Trash2 size={12} />
                                       </button>
@@ -490,7 +540,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                 )}
                               </div>
                             ))}
-                            {canEditContent && (
+                            {canModifyModule && (
                               <button 
                                 onClick={() => onAddLesson && onAddLesson(course.id, module.id)}
                                 className="text-xs text-indigo-500 hover:underline px-2 py-1 mt-1"
@@ -503,7 +553,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                       </div>
                     );
                   })}
-                  {canEditContent && (
+                  {canModify(course.id) && (
                     <button 
                       onClick={() => onAddModule && onAddModule(course.id)}
                       className="w-full text-xs text-slate-400 border border-dashed border-slate-200 p-2 rounded hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1"
@@ -522,7 +572,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
         {selectedLesson ? (
           <>
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div className={`p-4 border-b border-slate-100 flex justify-between items-center ${selectedLesson.lesson.status === 'pending_deletion' ? 'bg-red-50' : 'bg-slate-50'}`}>
                 <div className="flex items-center gap-3 overflow-hidden">
                    {canSetReadiness && (
                        <div className="flex-shrink-0 flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-slate-300 group">
@@ -532,14 +582,39 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                            />
                        </div>
                    )}
-                   <h2 className="font-bold text-lg text-slate-800 truncate">{selectedLesson.lesson.title}</h2>
+                   <h2 className={`font-bold text-lg truncate ${selectedLesson.lesson.status === 'pending_deletion' ? 'text-red-700' : 'text-slate-800'}`}>
+                     {selectedLesson.lesson.title}
+                   </h2>
                    {selectedLesson.lesson.status === 'draft' && (
                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-200 text-slate-600 uppercase">{t.draft}</span>
                    )}
+                   {selectedLesson.lesson.status === 'pending_deletion' && (
+                       <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-200 text-red-700 uppercase flex items-center gap-1">
+                          <AlertTriangle size={12} /> {t.pendingDeletion}
+                       </span>
+                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    {/* Admin Restore Controls */}
+                    {selectedLesson.lesson.status === 'pending_deletion' && (userRole === 'admin' || userRole === 'methodist') && (
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => handleRestore(selectedLesson.lesson, selectedLesson.courseId, selectedLesson.moduleId)}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-100 text-green-700 hover:bg-green-200"
+                            >
+                                <RotateCcw size={16} /> {t.restoreAndBlock}
+                            </button>
+                            <button 
+                                onClick={(e) => requestDelete(e, 'lesson', selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson.id)}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700"
+                            >
+                                <Trash2 size={16} /> {t.permanentlyDelete}
+                            </button>
+                        </div>
+                    )}
+
                     {/* Publish Button */}
-                    {canPublish && (
+                    {canPublish && selectedLesson.lesson.status !== 'pending_deletion' && (
                         <button 
                             onClick={() => onPublishLesson?.(selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson.id, selectedLesson.lesson.status !== 'published')}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -553,7 +628,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                         </button>
                     )}
 
-                    {canRate && (
+                    {canRate && selectedLesson.lesson.status !== 'pending_deletion' && (
                         <div className="flex gap-0.5 mr-4">
                             {[1, 2, 3, 4, 5].map(star => (
                                 <button 
@@ -567,7 +642,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                         </div>
                     )}
 
-                    {canEditContent && (
+                    {canModify(selectedLesson.courseId, selectedLesson.moduleId) && selectedLesson.lesson.status !== 'pending_deletion' && (
                         !isEditing ? (
                             <button 
                                 onClick={() => setIsEditing(true)}
@@ -587,7 +662,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+            <div className={`flex-1 overflow-y-auto p-8 space-y-6 ${selectedLesson.lesson.status === 'pending_deletion' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                 {selectedLesson.lesson.blocks.length === 0 && (
                     <div className="text-center py-20 text-slate-400">
                         <p>{t.draft}</p>
@@ -714,7 +789,6 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                 ))}
             </div>
 
-            {/* ... (Toolbars and Modals same as before) ... */}
             {isEditing && (
                 <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2 overflow-x-auto">
                     <button onClick={() => handleAddBlock(ContentType.TEXT)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap"><FileText size={16} /> {t.addText}</button>
@@ -740,8 +814,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-96 shadow-xl border border-slate-100 transform transition-all scale-100">
                 <div className="flex items-center gap-3 text-red-600 mb-4"><div className="bg-red-100 p-2 rounded-full"><AlertTriangle size={24} /></div><h3 className="text-lg font-bold text-slate-900">{t.delete}</h3></div>
-                <p className="text-slate-600 mb-6">{t.confirmDelete}</p>
-                <div className="flex gap-3 justify-end"><button onClick={() => setDeleteConfirmation(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">{t.cancel}</button><button onClick={confirmDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md shadow-red-100">{t.delete}</button></div>
+                <p className="text-slate-600 mb-6">{deleteConfirmation.isSoftDelete ? "Request deletion for this lesson? It will be hidden from your view but visible to admins for final removal." : t.confirmDelete}</p>
+                <div className="flex gap-3 justify-end"><button onClick={() => setDeleteConfirmation(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">{t.cancel}</button><button onClick={confirmDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md shadow-red-100">{deleteConfirmation.isSoftDelete ? "Request Delete" : t.delete}</button></div>
             </div>
         </div>
       )}

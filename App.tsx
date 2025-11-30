@@ -126,6 +126,18 @@ const MainApp: React.FC = () => {
       return courses.courses.filter(c => allAllowed.includes(c.id));
   }, [courses.courses, auth.currentUser, currentUserGroups]);
 
+  // Handle Restoration logic: Restore lesson AND deny access to the user who deleted it
+  const handleRestoreLesson = (courseId: string, moduleId: string, lessonId: string, deletedBy?: string) => {
+      // 1. Restore the lesson in the course structure
+      courses.restoreLesson(courseId, moduleId, lessonId);
+
+      // 2. If we know who deleted it, deny them future access
+      if (deletedBy) {
+          users.denyUserAccess(deletedBy, lessonId);
+          // Log this specific denial logic is handled inside denyUserAccess or we can log it separately if needed
+          // The restoreLesson already logs the restore action
+      }
+  };
 
   if (isLoading) {
     return (
@@ -199,6 +211,7 @@ const MainApp: React.FC = () => {
             onDeleteCourse={courses.deleteCourse}
             onDeleteModule={courses.deleteModule}
             onDeleteLesson={courses.deleteLesson}
+            onRestoreLesson={handleRestoreLesson}
             onPublishLesson={courses.publishLesson}
           />
         );

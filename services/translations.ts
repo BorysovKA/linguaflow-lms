@@ -109,6 +109,9 @@ export const translations = {
     grantAccess: "Grant Access",
     selectUserOrGroup: "Select a user or group to manage their access.",
     addGroup: "Add Group",
+    pendingDeletion: "Pending Deletion",
+    restoreAndBlock: "Restore & Block Access",
+    permanentlyDelete: "Permanently Delete",
     actionTypes: {
       create: "Created",
       update: "Updated",
@@ -116,7 +119,9 @@ export const translations = {
       move: "Moved",
       rename: "Renamed",
       publish: "Published",
-      access_grant: "Access Granted"
+      access_grant: "Access Granted",
+      restore: "Restored",
+      access_deny: "Access Denied"
     },
     targetTypes: {
       course: "Course",
@@ -243,6 +248,9 @@ export const translations = {
     grantAccess: "Надати Доступ",
     selectUserOrGroup: "Виберіть користувача або групу для налаштування доступу.",
     addGroup: "Додати Групу",
+    pendingDeletion: "Очікує видалення",
+    restoreAndBlock: "Відновити та заблокувати доступ",
+    permanentlyDelete: "Видалити назавжди",
     actionTypes: {
       create: "Створено",
       update: "Оновлено",
@@ -250,7 +258,9 @@ export const translations = {
       move: "Переміщено",
       rename: "Перейменовано",
       publish: "Опубліковано",
-      access_grant: "Надано доступ"
+      access_grant: "Надано доступ",
+      restore: "Відновлено",
+      access_deny: "Заблоковано доступ"
     },
     targetTypes: {
       course: "Курс",
