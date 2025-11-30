@@ -173,6 +173,7 @@ const MainApp: React.FC = () => {
         return (
           <UsersList 
             users={users.users} 
+            currentUser={currentUser}
             onAddUser={users.addUser} 
             onUpdateUser={users.updateUser} 
             onDeleteUser={users.deleteUser} 
@@ -208,6 +209,9 @@ const MainApp: React.FC = () => {
             onMoveCourse={courses.moveCourse}
             onMoveModule={courses.moveModule}
             onMoveLesson={courses.moveLesson}
+            onReorderCourse={courses.reorderCourse}
+            onReorderModule={courses.reorderModule}
+            onReorderLesson={courses.reorderLesson}
             onUpdateCourse={courses.updateCourse}
             onRenameModule={courses.renameModule}
             onRenameLesson={courses.renameLesson}

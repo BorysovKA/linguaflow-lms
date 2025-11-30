@@ -4,6 +4,13 @@ import { Course, Lesson, CourseModule, User, ActionType, TargetType } from '../t
 import { dataService } from '../services/dataService';
 import { useLanguage } from '../contexts/LanguageContext';
 
+// Helper for array moving
+const arrayMove = <T>(array: T[], from: number, to: number): T[] => {
+  const newArray = array.slice();
+  newArray.splice(to < 0 ? newArray.length + to : to, 0, newArray.splice(from, 1)[0]);
+  return newArray;
+};
+
 export const useCourses = (
   initialCourses: Course[], 
   isLoading: boolean,
@@ -78,25 +85,26 @@ export const useCourses = (
     }));
   };
 
-  const moveLesson = (courseId: string, moduleId: string, index: number, direction: 'up' | 'down') => {
+  const reorderLesson = (courseId: string, moduleId: string, fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
     setCourses(prev => prev.map(c => {
         if (c.id !== courseId) return c;
         return {
             ...c,
             modules: c.modules.map(m => {
                 if (m.id !== moduleId) return m;
-                if (direction === 'up' && index === 0) return m;
-                if (direction === 'down' && index === m.lessons.length - 1) return m;
-
-                const newLessons = [...m.lessons];
-                const swapIdx = direction === 'up' ? index - 1 : index + 1;
-                [newLessons[index], newLessons[swapIdx]] = [newLessons[swapIdx], newLessons[index]];
-                
-                logAction(currentUser, 'move', 'lesson', newLessons[swapIdx].title, undefined, { courseId, moduleId, lessonId: newLessons[swapIdx].id });
+                const newLessons = arrayMove(m.lessons, fromIndex, toIndex);
+                // Log only if needed, to avoid spamming logs during fast drags
                 return { ...m, lessons: newLessons };
             })
         };
     }));
+  };
+
+  const moveLesson = (courseId: string, moduleId: string, index: number, direction: 'up' | 'down') => {
+      // Compatibility wrapper for button-based moves if needed
+      const toIndex = direction === 'up' ? index - 1 : index + 1;
+      reorderLesson(courseId, moduleId, index, toIndex);
   };
 
   // Soft delete for teachers, hard delete for admins (when force=true)
@@ -166,19 +174,18 @@ export const useCourses = (
     }));
   };
 
-  const moveModule = (courseId: string, index: number, direction: 'up' | 'down') => {
-    setCourses(prev => prev.map(c => {
-        if (c.id !== courseId) return c;
-        if (direction === 'up' && index === 0) return c;
-        if (direction === 'down' && index === c.modules.length - 1) return c;
+  const reorderModule = (courseId: string, fromIndex: number, toIndex: number) => {
+      if (fromIndex === toIndex) return;
+      setCourses(prev => prev.map(c => {
+          if (c.id !== courseId) return c;
+          const newModules = arrayMove(c.modules, fromIndex, toIndex);
+          return { ...c, modules: newModules };
+      }));
+  };
 
-        const newModules = [...c.modules];
-        const swapIdx = direction === 'up' ? index - 1 : index + 1;
-        [newModules[index], newModules[swapIdx]] = [newModules[swapIdx], newModules[index]];
-        
-        logAction(currentUser, 'move', 'module', newModules[swapIdx].title, undefined, { courseId, moduleId: newModules[swapIdx].id });
-        return { ...c, modules: newModules };
-    }));
+  const moveModule = (courseId: string, index: number, direction: 'up' | 'down') => {
+    const toIndex = direction === 'up' ? index - 1 : index + 1;
+    reorderModule(courseId, index, toIndex);
   };
 
   const deleteModule = (courseId: string, moduleId: string) => {
@@ -208,16 +215,14 @@ export const useCourses = (
     setCourses(prev => prev.map(c => c.id !== id ? c : { ...c, title, level, targetAudience: audience }));
   };
 
+  const reorderCourse = (fromIndex: number, toIndex: number) => {
+      if (fromIndex === toIndex) return;
+      setCourses(prev => arrayMove(prev, fromIndex, toIndex));
+  };
+
   const moveCourse = (index: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === courses.length - 1) return;
-    
-    const newCourses = [...courses];
-    const swapIdx = direction === 'up' ? index - 1 : index + 1;
-    [newCourses[index], newCourses[swapIdx]] = [newCourses[swapIdx], newCourses[index]];
-    
-    setCourses(newCourses);
-    logAction(currentUser, 'move', 'course', newCourses[swapIdx].title);
+    const toIndex = direction === 'up' ? index - 1 : index + 1;
+    reorderCourse(index, toIndex);
   };
 
   const deleteCourse = (id: string) => {
@@ -234,14 +239,17 @@ export const useCourses = (
     renameLesson,
     deleteLesson,
     restoreLesson,
+    reorderLesson,
     moveLesson,
     addModule,
     renameModule,
     deleteModule,
+    reorderModule,
     moveModule,
     addCourse,
     updateCourse,
     deleteCourse,
+    reorderCourse,
     moveCourse,
     publishLesson
   };
