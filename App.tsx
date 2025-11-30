@@ -5,42 +5,58 @@ import { UsersList } from './components/UsersList';
 import { Curriculum } from './components/Curriculum';
 import { StudentClasses } from './components/StudentClasses';
 import { Settings } from './components/Settings';
-import { User, Course, Lesson, CourseModule, ActivityLogEntry, ActionType, TargetType, AppSettings } from './types';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { BookOpen, Layers, FileText, Loader2, Database, Sparkles } from 'lucide-react';
 import { dataService } from './services/dataService';
+
+// Custom Hooks
+import { useAuth } from './hooks/useAuth';
+import { useSettings } from './hooks/useSettings';
+import { useActivityLog } from './hooks/useActivityLog';
+import { useUsers } from './hooks/useUsers';
+import { useCourses } from './hooks/useCourses';
 
 // Lazy load heavy components
 const AIArchitect = React.lazy(() => import('./components/AIArchitect').then(module => ({ default: module.AIArchitect })));
 const ActivityLog = React.lazy(() => import('./components/ActivityLog').then(module => ({ default: module.ActivityLog })));
 
 const MainApp: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentPage, setCurrentPage] = useState('login'); 
   const { t } = useLanguage();
-  
+  const [currentPage, setCurrentPage] = useState('login'); 
   const [isLoading, setIsLoading] = useState(true);
   const [isDbConnected, setIsDbConnected] = useState(false);
-  const [users, setUsers] = useState<User[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
-  const [appSettings, setAppSettings] = useState<AppSettings>({ levels: [], targetAudiences: [] });
+  const [curriculumNavigation, setCurriculumNavigation] = useState<{
+    courseId?: string;
+    moduleId?: string;
+    lessonId?: string;
+  } | null>(null);
 
+  // 1. Initialize State via Hooks (initially empty)
+  const auth = useAuth(null);
+  const activity = useActivityLog([], isLoading);
+  const settings = useSettings({ levels: [], targetAudiences: [] }, isLoading, (a, t, ti) => activity.logAction(auth.currentUser, a, t, ti));
+  const users = useUsers([], isLoading, auth.currentUser, auth.updateCurrentUser);
+  const courses = useCourses([], isLoading, auth.currentUser, activity.logAction);
+
+  // 2. Fetch Initial Data
   useEffect(() => {
     const initApp = async () => {
       try {
         const data = await dataService.init();
-        setUsers(data.users);
-        setCourses(data.courses);
-        setActivityLog(data.logs);
-        setAppSettings(data.settings);
+        
+        // Hydrate hooks
+        users.setUsers(data.users);
+        courses.setCourses(data.courses);
+        activity.setActivityLog(data.logs);
+        settings.setSettings(data.settings);
         setIsDbConnected(data.isConnected);
 
+        // Check for persisted session
         const savedUser = dataService.getCurrentUser();
         if (savedUser) {
            const validUser = data.users.find(u => u.id === savedUser.id);
            if (validUser) {
-             setCurrentUser(validUser);
+             auth.setCurrentUser(validUser);
              const lastPage = localStorage.getItem('lms_last_page');
              setCurrentPage(lastPage || 'dashboard');
            }
@@ -55,259 +71,40 @@ const MainApp: React.FC = () => {
     initApp();
   }, []);
 
-  useEffect(() => { 
-    if (!isLoading) dataService.saveUsers(users); 
-  }, [users, isLoading]);
-
-  useEffect(() => { 
-    if (!isLoading) dataService.saveCourses(courses); 
-  }, [courses, isLoading]);
-
-  useEffect(() => { 
-    if (!isLoading) dataService.saveLogs(activityLog); 
-  }, [activityLog, isLoading]);
-
+  // 3. Navigation persistence
   useEffect(() => {
-    if (!isLoading) dataService.saveSettings(appSettings);
-  }, [appSettings, isLoading]);
-
-  useEffect(() => {
-      if (currentUser && currentPage !== 'login') {
+      if (auth.currentUser && currentPage !== 'login') {
           localStorage.setItem('lms_last_page', currentPage);
       }
-  }, [currentPage, currentUser]);
+  }, [currentPage, auth.currentUser]);
 
-  const [curriculumNavigation, setCurriculumNavigation] = useState<{
-    courseId?: string;
-    moduleId?: string;
-    lessonId?: string;
-  } | null>(null);
-
-  const logAction = (
-    user: User, 
-    action: ActionType, 
-    targetType: TargetType, 
-    title: string, 
-    details?: string,
-    contextIds?: { courseId?: string, moduleId?: string, lessonId?: string }
-  ) => {
-    const entry: ActivityLogEntry = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        userId: user.id,
-        userName: user.name,
-        action,
-        targetType,
-        targetTitle: title,
-        details,
-        timestamp: Date.now(),
-        contextIds
-    };
-    setActivityLog(prev => [entry, ...prev]);
-  };
-
-  const handleLogin = (u: User) => {
-    setCurrentUser(u);
-    dataService.persistCurrentUser(u);
+  // 4. Handlers
+  const handleLoginWrapper = (u: any) => {
+    auth.login(u);
     if (u.role === 'admin') setCurrentPage('users');
     else if (u.role === 'methodist') setCurrentPage('curriculum');
     else if (u.role === 'student' || u.role === 'teacher') setCurrentPage('my-classes');
     else setCurrentPage('curriculum');
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    dataService.persistCurrentUser(null);
+  const handleLogoutWrapper = () => {
+    auth.logout();
     localStorage.removeItem('lms_last_page');
     setCurrentPage('login');
   };
 
-  const handleAddUser = (newUser: Omit<User, 'id'>) => {
-    const u: User = { ...newUser, id: Date.now().toString() };
-    setUsers([...users, u]);
-  };
-
-  const handleUpdateUser = (id: string, updatedData: Partial<User>) => {
-    const updatedUsers = users.map(u => u.id === id ? { ...u, ...updatedData } : u);
-    setUsers(updatedUsers);
-    if (currentUser && currentUser.id === id) {
-        const updatedCurrent = { ...currentUser, ...updatedData };
-        setCurrentUser(updatedCurrent);
-        dataService.persistCurrentUser(updatedCurrent);
-    }
-  };
-
-  const handleDeleteUser = (id: string) => {
-    setUsers(users.filter(u => u.id !== id));
-  };
-
-  const handleUpdateLesson = (courseId: string, moduleId: string, updatedLesson: Lesson, description?: string) => {
-    if (currentUser) {
-        logAction(currentUser, 'update', 'lesson', updatedLesson.title, description || 'Content updated', { courseId, moduleId, lessonId: updatedLesson.id });
-    }
-    setCourses(prev => prev.map(c => c.id !== courseId ? c : {
-      ...c,
-      modules: c.modules.map(m => m.id !== moduleId ? m : {
-        ...m,
-        lessons: m.lessons.map(l => l.id === updatedLesson.id ? updatedLesson : l)
-      })
-    }));
-  };
-
-  const handleAddLesson = (courseId: string, moduleId: string) => {
-    const newLesson: Lesson = {
-      id: Date.now().toString(),
-      title: t.newLessonTitle,
-      durationMinutes: 45,
-      status: 'draft',
-      rating: 0,
-      readiness: 0,
-      blocks: []
-    };
-    
-    if (currentUser) {
-        logAction(currentUser, 'create', 'lesson', newLesson.title, undefined, { courseId, moduleId, lessonId: newLesson.id });
-    }
-
-    setCourses(prev => prev.map(c => c.id !== courseId ? c : {
-      ...c,
-      modules: c.modules.map(m => m.id !== moduleId ? m : {
-        ...m,
-        lessons: [...m.lessons, newLesson]
-      })
-    }));
-  };
-
-  const handleAddCourse = () => {
-      const newCourse: Course = {
-          id: Date.now().toString(),
-          title: t.newCourseTitle,
-          level: appSettings.levels[0] || 'A1',
-          targetAudience: appSettings.targetAudiences[0] || 'Adults',
-          modules: []
-      };
-      if (currentUser) logAction(currentUser, 'create', 'course', newCourse.title, undefined, { courseId: newCourse.id });
-      setCourses(prev => [...prev, newCourse]);
-  };
-
-  const handleAddModule = (courseId: string) => {
-      const newModule: CourseModule = {
-          id: Date.now().toString(),
-          title: t.newModuleTitle,
-          lessons: []
-      };
-      if (currentUser) logAction(currentUser, 'create', 'module', newModule.title, undefined, { courseId, moduleId: newModule.id });
-      setCourses(prev => prev.map(c => c.id !== courseId ? c : {
-          ...c,
-          modules: [...c.modules, newModule]
-      }));
-  };
-
-  const handleUpdateCourse = (id: string, title: string, level: string, audience: string) => {
-    const course = courses.find(c => c.id === id);
-    if (currentUser && course) logAction(currentUser, 'update', 'course', title, `Level: ${level}, Aud: ${audience}`, { courseId: id });
-    setCourses(prev => prev.map(c => c.id !== id ? c : { ...c, title, level, targetAudience: audience }));
-  };
-
-  const handleRenameModule = (courseId: string, moduleId: string, newTitle: string) => {
-    if (currentUser) logAction(currentUser, 'rename', 'module', newTitle, undefined, { courseId, moduleId });
-    setCourses(prev => prev.map(c => c.id !== courseId ? c : {
-        ...c,
-        modules: c.modules.map(m => m.id !== moduleId ? m : { ...m, title: newTitle })
-    }));
-  };
-
-  const handleMoveCourse = (index: number, direction: 'up' | 'down') => {
-      if (direction === 'up' && index === 0) return;
-      if (direction === 'down' && index === courses.length - 1) return;
-      
-      const newCourses = [...courses];
-      const swapIdx = direction === 'up' ? index - 1 : index + 1;
-      [newCourses[index], newCourses[swapIdx]] = [newCourses[swapIdx], newCourses[index]];
-      
-      setCourses(newCourses);
-      if (currentUser) logAction(currentUser, 'move', 'course', newCourses[swapIdx].title);
-  };
-
-  const handleMoveModule = (courseId: string, index: number, direction: 'up' | 'down') => {
-      setCourses(prev => prev.map(c => {
-          if (c.id !== courseId) return c;
-          if (direction === 'up' && index === 0) return c;
-          if (direction === 'down' && index === c.modules.length - 1) return c;
-
-          const newModules = [...c.modules];
-          const swapIdx = direction === 'up' ? index - 1 : index + 1;
-          [newModules[index], newModules[swapIdx]] = [newModules[swapIdx], newModules[index]];
-          
-          if (currentUser) logAction(currentUser, 'move', 'module', newModules[swapIdx].title, undefined, { courseId, moduleId: newModules[swapIdx].id });
-          return { ...c, modules: newModules };
-      }));
-  };
-
-  const handleMoveLesson = (courseId: string, moduleId: string, index: number, direction: 'up' | 'down') => {
-      setCourses(prev => prev.map(c => {
-          if (c.id !== courseId) return c;
-          return {
-              ...c,
-              modules: c.modules.map(m => {
-                  if (m.id !== moduleId) return m;
-                  if (direction === 'up' && index === 0) return m;
-                  if (direction === 'down' && index === m.lessons.length - 1) return m;
-
-                  const newLessons = [...m.lessons];
-                  const swapIdx = direction === 'up' ? index - 1 : index + 1;
-                  [newLessons[index], newLessons[swapIdx]] = [newLessons[swapIdx], newLessons[index]];
-                  
-                  if (currentUser) logAction(currentUser, 'move', 'lesson', newLessons[swapIdx].title, undefined, { courseId, moduleId, lessonId: newLessons[swapIdx].id });
-                  return { ...m, lessons: newLessons };
-              })
-          };
-      }));
-  };
-
-  const handleDeleteCourse = (id: string) => {
-      const c = courses.find(x => x.id === id);
-      if (currentUser && c) logAction(currentUser, 'delete', 'course', c.title, undefined, { courseId: id });
-      setCourses(prev => prev.filter(x => x.id !== id));
-  };
-
-  const handleDeleteModule = (courseId: string, moduleId: string) => {
-      if (currentUser) logAction(currentUser, 'delete', 'module', 'Module', undefined, { courseId, moduleId });
-      setCourses(prev => prev.map(c => c.id !== courseId ? c : {
-          ...c,
-          modules: c.modules.filter(m => m.id !== moduleId)
-      }));
-  };
-
-  const handleDeleteLesson = (courseId: string, moduleId: string, lessonId: string) => {
-       if (currentUser) logAction(currentUser, 'delete', 'lesson', 'Lesson', undefined, { courseId, moduleId, lessonId });
-       setCourses(prev => prev.map(c => c.id !== courseId ? c : {
-          ...c,
-          modules: c.modules.map(m => m.id !== moduleId ? m : {
-              ...m,
-              lessons: m.lessons.filter(l => l.id !== lessonId)
-          })
-      }));
-  };
-
   const handleNavigateToCourse = (courseId: string) => {
-      // Find the first module/lesson to open
-      const course = courses.find(c => c.id === courseId);
-      if (course) {
-          const firstModule = course.modules[0];
-          const firstLesson = firstModule?.lessons[0];
-          
-          setCurriculumNavigation({
-              courseId,
-              moduleId: firstModule?.id,
-              lessonId: firstLesson?.id
-          });
-          setCurrentPage('curriculum');
-      }
-  };
-
-  const handleUpdateSettings = (newSettings: AppSettings) => {
-    setAppSettings(newSettings);
-    if (currentUser) logAction(currentUser, 'update', 'settings', 'App Settings');
+    const course = courses.courses.find(c => c.id === courseId);
+    if (course) {
+        const firstModule = course.modules[0];
+        const firstLesson = firstModule?.lessons[0];
+        setCurriculumNavigation({
+            courseId,
+            moduleId: firstModule?.id,
+            lessonId: firstLesson?.id
+        });
+        setCurrentPage('curriculum');
+    }
   };
 
   if (isLoading) {
@@ -322,8 +119,8 @@ const MainApp: React.FC = () => {
     );
   }
 
-  if (!currentUser || currentPage === 'login') {
-    return <Login onLogin={handleLogin} users={users} />;
+  if (!auth.currentUser || currentPage === 'login') {
+    return <Login onLogin={handleLoginWrapper} users={users.users} />;
   }
 
   const renderContent = () => {
@@ -331,14 +128,14 @@ const MainApp: React.FC = () => {
       case 'dashboard':
         return (
           <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-slate-900">{t.welcomeBack}, {currentUser.name}!</h1>
+            <h1 className="text-3xl font-bold text-slate-900">{t.welcomeBack}, {auth.currentUser.name}!</h1>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-indigo-100 text-indigo-600 rounded-lg"><BookOpen size={24} /></div>
                   <div>
                     <p className="text-sm text-slate-500">{t.activeCourses}</p>
-                    <p className="text-2xl font-bold text-slate-900">{courses.length}</p>
+                    <p className="text-2xl font-bold text-slate-900">{courses.courses.length}</p>
                   </div>
                 </div>
               </div>
@@ -348,7 +145,7 @@ const MainApp: React.FC = () => {
                   <div>
                     <p className="text-sm text-slate-500">{t.totalModules}</p>
                     <p className="text-2xl font-bold text-slate-900">
-                      {courses.reduce((acc, c) => acc + c.modules.length, 0)}
+                      {courses.courses.reduce((acc, c) => acc + c.modules.length, 0)}
                     </p>
                   </div>
                 </div>
@@ -359,13 +156,13 @@ const MainApp: React.FC = () => {
                   <div>
                     <p className="text-sm text-slate-500">{t.totalLessons}</p>
                     <p className="text-2xl font-bold text-slate-900">
-                      {courses.reduce((acc, c) => acc + c.modules.reduce((mAcc, m) => mAcc + m.lessons.length, 0), 0)}
+                      {courses.courses.reduce((acc, c) => acc + c.modules.reduce((mAcc, m) => mAcc + m.lessons.length, 0), 0)}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
-            {['admin', 'methodist'].includes(currentUser.role) && (
+            {['admin', 'methodist'].includes(auth.currentUser.role) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
                      <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-8 text-white shadow-lg relative overflow-hidden group cursor-pointer" onClick={() => setCurrentPage('architect')}>
                         <div className="relative z-10">
@@ -386,32 +183,32 @@ const MainApp: React.FC = () => {
       case 'users':
         return (
           <UsersList 
-            users={users} 
-            onAddUser={handleAddUser} 
-            onUpdateUser={handleUpdateUser} 
-            onDeleteUser={handleDeleteUser} 
+            users={users.users} 
+            onAddUser={users.addUser} 
+            onUpdateUser={users.updateUser} 
+            onDeleteUser={users.deleteUser} 
           />
         );
       case 'curriculum':
         return (
           <Curriculum 
-            courses={courses} 
-            userRole={currentUser.role}
-            levels={appSettings.levels}
-            audiences={appSettings.targetAudiences}
+            courses={courses.courses} 
+            userRole={auth.currentUser.role}
+            levels={settings.settings.levels}
+            audiences={settings.settings.targetAudiences}
             initialSelection={curriculumNavigation}
-            onUpdateLesson={handleUpdateLesson}
-            onAddLesson={handleAddLesson}
-            onAddCourse={handleAddCourse}
-            onAddModule={handleAddModule}
-            onMoveCourse={handleMoveCourse}
-            onMoveModule={handleMoveModule}
-            onMoveLesson={handleMoveLesson}
-            onUpdateCourse={handleUpdateCourse}
-            onRenameModule={handleRenameModule}
-            onDeleteCourse={handleDeleteCourse}
-            onDeleteModule={handleDeleteModule}
-            onDeleteLesson={handleDeleteLesson}
+            onUpdateLesson={courses.updateLesson}
+            onAddLesson={courses.addLesson}
+            onAddCourse={() => courses.addCourse(settings.settings.levels[0] || 'A1', settings.settings.targetAudiences[0] || 'General')}
+            onAddModule={courses.addModule}
+            onMoveCourse={courses.moveCourse}
+            onMoveModule={courses.moveModule}
+            onMoveLesson={courses.moveLesson}
+            onUpdateCourse={courses.updateCourse}
+            onRenameModule={courses.renameModule}
+            onDeleteCourse={courses.deleteCourse}
+            onDeleteModule={courses.deleteModule}
+            onDeleteLesson={courses.deleteLesson}
           />
         );
       case 'architect':
@@ -424,8 +221,8 @@ const MainApp: React.FC = () => {
         return (
             <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-indigo-600" /></div>}>
                 <ActivityLog 
-                    logs={activityLog} 
-                    users={users} 
+                    logs={activity.activityLog} 
+                    users={users.users} 
                     onNavigate={(ctx) => {
                         setCurriculumNavigation(ctx);
                         setCurrentPage('curriculum');
@@ -436,15 +233,15 @@ const MainApp: React.FC = () => {
       case 'my-classes':
         return (
             <StudentClasses 
-                courses={courses}
+                courses={courses.courses}
                 onNavigateToCourse={handleNavigateToCourse}
             />
         );
       case 'settings':
         return (
             <Settings 
-                settings={appSettings} 
-                onUpdateSettings={handleUpdateSettings}
+                settings={settings.settings} 
+                onUpdateSettings={settings.updateSettings}
             />
         );
       default:
@@ -454,8 +251,8 @@ const MainApp: React.FC = () => {
 
   return (
     <Layout 
-      user={currentUser} 
-      onLogout={handleLogout} 
+      user={auth.currentUser} 
+      onLogout={handleLogoutWrapper} 
       currentPage={currentPage}
       onNavigate={(page) => {
           setCurriculumNavigation(null);
