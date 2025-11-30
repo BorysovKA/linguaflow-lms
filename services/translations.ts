@@ -133,6 +133,13 @@ export const translations = {
     searchPlaceholder: "Search...",
     noActivity: "No activity recorded yet.",
     actionsCount: "Actions",
+    
+    staff: "Staff",
+    archive: "Archive",
+    showArchive: "Show Archive",
+    restore: "Restore",
+    moveToArchive: "Move to Archive",
+    archived: "Archived",
 
     aiHelper: {
       title: "AI Co-pilot",
@@ -164,7 +171,9 @@ export const translations = {
       publish: "Published",
       access_grant: "Access Granted",
       restore: "Restored",
-      access_deny: "Access Denied"
+      access_deny: "Access Denied",
+      archive: "Archived",
+      unarchive: "Restored"
     },
     targetTypes: {
       course: "Course",
@@ -315,6 +324,13 @@ export const translations = {
     searchPlaceholder: "Пошук...",
     noActivity: "Активності ще не зафіксовано.",
     actionsCount: "Дій",
+    
+    staff: "Персонал",
+    archive: "Архів",
+    showArchive: "Показати архів",
+    restore: "Відновити",
+    moveToArchive: "В архів",
+    archived: "В архіві",
 
     aiHelper: {
       title: "AI Co-pilot",
@@ -346,7 +362,9 @@ export const translations = {
       publish: "Опубліковано",
       access_grant: "Надано доступ",
       restore: "Відновлено",
-      access_deny: "Заблоковано доступ"
+      access_deny: "Заблоковано доступ",
+      archive: "В архів",
+      unarchive: "Відновлено з архіву"
     },
     targetTypes: {
       course: "Курс",

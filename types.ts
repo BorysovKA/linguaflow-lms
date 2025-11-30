@@ -13,6 +13,7 @@ export interface User {
   allowedContent?: string[]; // IDs of Courses, Modules, or Lessons allowed
   deniedContent?: string[]; // IDs explicitly blocked (even if parent is allowed)
   groups?: string[]; // IDs of groups the user belongs to
+  isArchived?: boolean; // New field for archive status
 }
 
 export interface Group {
@@ -72,7 +73,7 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename' | 'publish' | 'access_grant' | 'restore' | 'access_deny' | 'copy';
+export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename' | 'publish' | 'access_grant' | 'restore' | 'access_deny' | 'copy' | 'archive' | 'unarchive';
 export type TargetType = 'course' | 'module' | 'lesson' | 'settings' | 'group' | 'user';
 
 export interface ActivityLogEntry {

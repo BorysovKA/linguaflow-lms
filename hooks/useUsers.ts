@@ -54,6 +54,10 @@ export const useUsers = (
       }
   };
 
+  const toggleUserArchive = (userId: string, isArchived: boolean) => {
+      updateUser(userId, { isArchived });
+  };
+
   const deleteUser = (id: string) => {
     setUsers(prev => prev.filter(u => u.id !== id));
   };
@@ -105,6 +109,7 @@ export const useUsers = (
     deleteUser,
     updateUserAccess,
     denyUserAccess,
+    toggleUserArchive,
     createGroup,
     deleteGroup,
     updateGroupAccess,

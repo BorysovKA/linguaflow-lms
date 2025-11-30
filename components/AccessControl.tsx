@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User, Course, Group } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Users, LayoutGrid, ChevronRight, ChevronDown, CheckSquare, Square, Plus, Trash2, Save, UserPlus } from 'lucide-react';
+import { Users, LayoutGrid, ChevronRight, ChevronDown, CheckSquare, Square, Plus, Trash2, Save, UserPlus, Briefcase, GraduationCap } from 'lucide-react';
 
 interface AccessControlProps {
   users: User[];
@@ -26,17 +26,17 @@ export const AccessControl: React.FC<AccessControlProps> = ({
   onUpdateGroupMembers
 }) => {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'users' | 'groups'>('users');
+  const [activeTab, setActiveTab] = useState<'students' | 'teachers' | 'groups'>('students');
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Record<string, boolean>>({});
   const [newGroupName, setNewGroupName] = useState('');
   
   // Helper to get allowed content for current selection
   const getCurrentAllowed = (): string[] => {
-      if (activeTab === 'users') {
-          return users.find(u => u.id === selectedEntityId)?.allowedContent || [];
-      } else {
+      if (activeTab === 'groups') {
           return groups.find(g => g.id === selectedEntityId)?.allowedContent || [];
+      } else {
+          return users.find(u => u.id === selectedEntityId)?.allowedContent || [];
       }
   };
 
@@ -52,10 +52,10 @@ export const AccessControl: React.FC<AccessControlProps> = ({
           newAllowed = [...currentAllowed, contentId];
       }
 
-      if (activeTab === 'users') {
-          onUpdateUserAccess(selectedEntityId, newAllowed);
-      } else {
+      if (activeTab === 'groups') {
           onUpdateGroupAccess(selectedEntityId, newAllowed);
+      } else {
+          onUpdateUserAccess(selectedEntityId, newAllowed);
       }
   };
 
@@ -80,7 +80,9 @@ export const AccessControl: React.FC<AccessControlProps> = ({
       onUpdateGroupMembers(groupId, newMembers);
   };
 
-  const students = users.filter(u => u.role === 'student');
+  // Filter users by role and ensure they are active (not archived) for access control
+  const activeStudents = users.filter(u => u.role === 'student' && !u.isArchived);
+  const activeTeachers = users.filter(u => u.role === 'teacher' && !u.isArchived);
 
   return (
     <div className="flex h-[calc(100vh-3rem)] gap-6">
@@ -88,10 +90,16 @@ export const AccessControl: React.FC<AccessControlProps> = ({
        <div className="w-80 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
            <div className="flex border-b border-slate-200">
                <button 
-                  onClick={() => { setActiveTab('users'); setSelectedEntityId(null); }}
-                  className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'users' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
+                  onClick={() => { setActiveTab('students'); setSelectedEntityId(null); }}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'students' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
                >
                    {t.students}
+               </button>
+               <button 
+                  onClick={() => { setActiveTab('teachers'); setSelectedEntityId(null); }}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'teachers' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
+               >
+                   {t.teachers}
                </button>
                <button 
                   onClick={() => { setActiveTab('groups'); setSelectedEntityId(null); }}
@@ -102,20 +110,11 @@ export const AccessControl: React.FC<AccessControlProps> = ({
            </div>
            
            <div className="p-4 flex-1 overflow-y-auto space-y-2">
-               {activeTab === 'users' ? (
+               {activeTab === 'students' && (
                    <>
-                      <div className="mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">{t.teachers}</div>
-                      {users.filter(u => u.role === 'teacher').map(user => (
-                           <button
-                             key={user.id}
-                             onClick={() => setSelectedEntityId(user.id)}
-                             className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${selectedEntityId === user.id ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 text-slate-700'}`}
-                           >
-                               <Users size={16} /> {user.name}
-                           </button>
-                      ))}
-                      <div className="mt-4 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">{t.students}</div>
-                      {students.map(user => (
+                      <div className="mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">{t.students}</div>
+                      {activeStudents.length === 0 && <p className="text-sm text-slate-400 italic p-2">No active students.</p>}
+                      {activeStudents.map(user => (
                            <button
                              key={user.id}
                              onClick={() => setSelectedEntityId(user.id)}
@@ -125,7 +124,25 @@ export const AccessControl: React.FC<AccessControlProps> = ({
                            </button>
                       ))}
                    </>
-               ) : (
+               )}
+
+               {activeTab === 'teachers' && (
+                   <>
+                      <div className="mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">{t.teachers}</div>
+                      {activeTeachers.length === 0 && <p className="text-sm text-slate-400 italic p-2">No active teachers.</p>}
+                      {activeTeachers.map(user => (
+                           <button
+                             key={user.id}
+                             onClick={() => setSelectedEntityId(user.id)}
+                             className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${selectedEntityId === user.id ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 text-slate-700'}`}
+                           >
+                               <Briefcase size={14} /> {user.name}
+                           </button>
+                      ))}
+                   </>
+               )}
+
+               {activeTab === 'groups' && (
                    <div className="space-y-4">
                        <div className="flex gap-2">
                            <input 
@@ -175,7 +192,7 @@ export const AccessControl: React.FC<AccessControlProps> = ({
                        <div className="p-4 border-b border-slate-200 bg-slate-50">
                            <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><UserPlus size={18} /> {t.members}</h3>
                            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                               {students.map(student => {
+                               {activeStudents.map(student => {
                                    const group = groups.find(g => g.id === selectedEntityId);
                                    const isMember = group?.studentIds.includes(student.id);
                                    return (
