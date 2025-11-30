@@ -1,7 +1,7 @@
 
 export const translations = {
   en: {
-    appTitle: "LinguaFlow LMS",
+    appTitle: "Level Up LMS",
     menu: "Menu",
     dashboard: "Dashboard",
     users: "Users",
@@ -26,7 +26,7 @@ export const translations = {
     buildFuture: "Lesson Planning Assistant",
     aiConsultantDesc: "Generate exercises, lesson plans, CCQs, and get teaching ideas instantly.",
     openAiConsultant: "Open AI Assistant",
-    loginTitle: "Sign in to LinguaFlow",
+    loginTitle: "Sign in to Level Up",
     loginSubtitle: "Enter your credentials to access the LMS",
     username: "Username",
     password: "Password",
@@ -163,7 +163,7 @@ export const translations = {
     greetings: "Hello! I am your AI Methodist Assistant. \n\nI can help you with:\n- Creating Lesson Plans (PPP, TBL)\n- Generating exercises (Gap fill, Matching)\n- Explaining Grammar & Vocab\n- Games & Warm-up ideas\n\nWhat are you teaching today?"
   },
   uk: {
-    appTitle: "LinguaFlow LMS",
+    appTitle: "Level Up LMS",
     menu: "Меню",
     dashboard: "Дашборд",
     users: "Користувачі",
@@ -188,7 +188,7 @@ export const translations = {
     buildFuture: "Помічник вчителя",
     aiConsultantDesc: "Генерація вправ, планів уроків, тестів та методичних ідей.",
     openAiConsultant: "Відкрити AI Асистента",
-    loginTitle: "Вхід до LinguaFlow",
+    loginTitle: "Вхід до Level Up",
     loginSubtitle: "Введіть облікові дані для доступу до LMS",
     username: "Ім'я користувача",
     password: "Пароль",
