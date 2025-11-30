@@ -1,4 +1,5 @@
-import React, { useState, useEffect, Suspense } from 'react';
+
+import React, { useState, useEffect, Suspense, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { Login } from './components/Login';
 import { UsersList } from './components/UsersList';
@@ -6,6 +7,7 @@ import { Curriculum } from './components/Curriculum';
 import { StudentClasses } from './components/StudentClasses';
 import { Settings } from './components/Settings';
 import { Dashboard } from './components/Dashboard';
+import { AccessControl } from './components/AccessControl';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { Loader2, Database } from 'lucide-react';
 import { dataService } from './services/dataService';
@@ -108,6 +110,23 @@ const MainApp: React.FC = () => {
     }
   };
 
+  // Helper to get current user groups
+  const currentUserGroups = useMemo(() => {
+      if (!auth.currentUser || !auth.currentUser.groups) return [];
+      return users.groups.filter(g => auth.currentUser?.groups?.includes(g.id));
+  }, [auth.currentUser, users.groups]);
+
+  // Filter courses for StudentClasses view based on access permissions
+  const availableCoursesForStudent = useMemo(() => {
+      if (!auth.currentUser) return [];
+      const userAllowed = auth.currentUser.allowedContent || [];
+      const groupsAllowed = currentUserGroups.flatMap(g => g.allowedContent);
+      const allAllowed = [...userAllowed, ...groupsAllowed];
+      
+      return courses.courses.filter(c => allAllowed.includes(c.id));
+  }, [courses.courses, auth.currentUser, currentUserGroups]);
+
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-400 gap-4">
@@ -144,11 +163,26 @@ const MainApp: React.FC = () => {
             onDeleteUser={users.deleteUser} 
           />
         );
+      case 'access':
+          return (
+              <AccessControl 
+                  users={users.users}
+                  groups={users.groups}
+                  courses={courses.courses}
+                  onUpdateUserAccess={users.updateUserAccess}
+                  onUpdateGroupAccess={users.updateGroupAccess}
+                  onCreateGroup={users.createGroup}
+                  onDeleteGroup={users.deleteGroup}
+                  onUpdateGroupMembers={users.updateGroupMembers}
+              />
+          );
       case 'curriculum':
         return (
           <Curriculum 
             courses={courses.courses} 
             userRole={auth.currentUser.role}
+            user={auth.currentUser}
+            userGroups={currentUserGroups}
             levels={settings.settings.levels}
             audiences={settings.settings.targetAudiences}
             initialSelection={curriculumNavigation}
@@ -165,6 +199,7 @@ const MainApp: React.FC = () => {
             onDeleteCourse={courses.deleteCourse}
             onDeleteModule={courses.deleteModule}
             onDeleteLesson={courses.deleteLesson}
+            onPublishLesson={courses.publishLesson}
           />
         );
       case 'architect':
@@ -189,7 +224,7 @@ const MainApp: React.FC = () => {
       case 'my-classes':
         return (
             <StudentClasses 
-                courses={courses.courses}
+                courses={availableCoursesForStudent}
                 onNavigateToCourse={handleNavigateToCourse}
             />
         );

@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { User, UserRole, Language } from '../types';
-import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff, Settings } from 'lucide-react';
+import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff, Settings, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface LayoutProps {
@@ -61,6 +62,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
             <NavItem id="dashboard" label={t.dashboard} icon={LayoutDashboard} roles={['admin', 'methodist', 'teacher', 'student']} />
             <NavItem id="activity" label={t.activityLog} icon={Activity} roles={['admin', 'methodist']} />
             <NavItem id="users" label={t.users} icon={Users} roles={['admin']} />
+            <NavItem id="access" label={t.accessControl} icon={ShieldCheck} roles={['admin', 'methodist']} />
             <NavItem id="curriculum" label={t.curriculum} icon={BookOpen} roles={['admin', 'methodist', 'teacher']} />
             <NavItem id="my-classes" label={t.myClasses} icon={GraduationCap} roles={['teacher', 'student']} />
           </div>
@@ -97,7 +99,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
             <LogOut size={16} />
             {t.signOut}
           </button>
-          <div className="text-[10px] text-slate-300 text-center mt-2">v1.4 Layout Update</div>
+          <div className="text-[10px] text-slate-300 text-center mt-2">v1.5 Groups & Access</div>
         </div>
       </aside>
 

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Course, Lesson, CourseModule, User, ActionType, TargetType } from '../types';
 import { dataService } from '../services/dataService';
@@ -32,6 +33,17 @@ export const useCourses = (
     }));
   };
 
+  const publishLesson = (courseId: string, moduleId: string, lessonId: string, isPublished: boolean) => {
+     logAction(currentUser, 'publish', 'lesson', isPublished ? 'Published' : 'Unpublished', undefined, { courseId, moduleId, lessonId });
+     setCourses(prev => prev.map(c => c.id !== courseId ? c : {
+      ...c,
+      modules: c.modules.map(m => m.id !== moduleId ? m : {
+        ...m,
+        lessons: m.lessons.map(l => l.id !== lessonId ? l : { ...l, status: isPublished ? 'published' : 'draft' })
+      })
+    }));
+  };
+
   const renameLesson = (courseId: string, moduleId: string, lessonId: string, newTitle: string) => {
     logAction(currentUser, 'rename', 'lesson', newTitle, undefined, { courseId, moduleId, lessonId });
     setCourses(prev => prev.map(c => c.id !== courseId ? c : {
@@ -49,6 +61,7 @@ export const useCourses = (
       title: t.newLessonTitle,
       durationMinutes: 45,
       status: 'draft',
+      authorId: currentUser?.id,
       rating: 0,
       readiness: 0,
       blocks: []
@@ -195,6 +208,7 @@ export const useCourses = (
     addCourse,
     updateCourse,
     deleteCourse,
-    moveCourse
+    moveCourse,
+    publishLesson
   };
 };

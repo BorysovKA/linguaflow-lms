@@ -10,6 +10,15 @@ export interface User {
   name: string;
   role: UserRole;
   avatar?: string;
+  allowedContent?: string[]; // IDs of Courses, Modules, or Lessons allowed
+  groups?: string[]; // IDs of groups the user belongs to
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  studentIds: string[];
+  allowedContent: string[];
 }
 
 export enum ContentType {
@@ -33,6 +42,7 @@ export interface Lesson {
   durationMinutes: number;
   blocks: ContentBlock[];
   status: 'draft' | 'published';
+  authorId?: string; // ID of the teacher who created it
   rating?: number;
   readiness?: number;
 }
@@ -46,8 +56,8 @@ export interface CourseModule {
 export interface Course {
   id: string;
   title: string;
-  level: string;           // Changed from union to string to allow custom levels
-  targetAudience: string;  // Changed from union to string to allow custom audiences
+  level: string;           
+  targetAudience: string;  
   modules: CourseModule[];
 }
 
@@ -58,8 +68,8 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename';
-export type TargetType = 'course' | 'module' | 'lesson' | 'settings';
+export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename' | 'publish' | 'access_grant';
+export type TargetType = 'course' | 'module' | 'lesson' | 'settings' | 'group' | 'user';
 
 export interface ActivityLogEntry {
   id: string;
