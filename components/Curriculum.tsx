@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Course, Lesson, ContentBlock, ContentType, UserRole, User, Group } from '../types';
-import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen, Loader2, RefreshCw, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen, Loader2, RefreshCw, Eye, EyeOff, RotateCcw, Sparkles, MessageSquare, Lightbulb, CheckSquare, Languages } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { analyzeLessonContent } from '../services/geminiService';
 
 interface CurriculumProps {
   courses: Course[];
@@ -57,6 +58,13 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   const [selectedLesson, setSelectedLesson] = useState<{ courseId: string, moduleId: string, lesson: Lesson } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
+  
+  // AI Co-pilot State
+  const [showAiPanel, setShowAiPanel] = useState(false);
+  const [aiMode, setAiMode] = useState<'grammar' | 'ideas' | 'rewrite'>('grammar');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [customPrompt, setCustomPrompt] = useState('');
   
   // State for interactive quizzes in student view
   const [quizState, setQuizState] = useState<Record<string, { selected: number | null, isCorrect: boolean | null }>>({});
@@ -169,6 +177,9 @@ export const Curriculum: React.FC<CurriculumProps> = ({
             setSelectedLesson({ courseId: course.id, moduleId: module.id, lesson });
             // Reset quiz state when changing lessons
             setQuizState({});
+            // Reset AI Panel
+            setAiResponse(null);
+            // Don't close panel if already open, just reset content
         }
       }
     }
@@ -207,6 +218,28 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     setSelectedLesson({ courseId, moduleId, lesson });
     setIsEditing(false);
     setQuizState({});
+    setAiResponse(null);
+  };
+
+  // AI Functionality
+  const handleAiAnalyze = async () => {
+      if (!selectedLesson) return;
+      setAiLoading(true);
+      setAiResponse(null);
+      
+      try {
+          const result = await analyzeLessonContent(
+              selectedLesson.lesson, 
+              aiMode,
+              aiMode === 'rewrite' ? customPrompt : undefined
+          );
+          setAiResponse(result);
+      } catch (error) {
+          console.error(error);
+          setAiResponse("Failed to analyze lesson.");
+      } finally {
+          setAiLoading(false);
+      }
   };
 
   // ... (Quiz Logic Redacted for brevity, same as previous) ...
@@ -397,6 +430,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     <div className="flex h-[calc(100vh-3rem)] gap-4 relative">
       {/* Sidebar List - Fixed Width */}
       <div className="w-[360px] flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+        {/* ... (Existing Sidebar Code) ... */}
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h2 className="font-bold text-lg text-slate-800">{t.courses}</h2>
           <div className="flex gap-1">
@@ -578,238 +612,344 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       </div>
 
       {/* Content Area - Fluid Width */}
-      <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm flex overflow-hidden">
         {selectedLesson ? (
-          <>
-            <div className={`p-4 border-b border-slate-100 flex justify-between items-center ${selectedLesson.lesson.status === 'pending_deletion' ? 'bg-red-50' : 'bg-slate-50'}`}>
-                <div className="flex items-center gap-3 overflow-hidden">
-                   {canSetReadiness && (
-                       <div className="flex-shrink-0 flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-slate-300 group">
-                           <ReadinessControl 
-                              value={selectedLesson.lesson.readiness || 0}
-                              onChange={(val) => updateReadiness(val)}
-                           />
-                       </div>
-                   )}
-                   <h2 className={`font-bold text-lg truncate ${selectedLesson.lesson.status === 'pending_deletion' ? 'text-red-700' : 'text-slate-800'}`}>
-                     {selectedLesson.lesson.title}
-                   </h2>
-                   {selectedLesson.lesson.status === 'draft' && (
-                       <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-200 text-slate-600 uppercase">{t.draft}</span>
-                   )}
-                   {selectedLesson.lesson.status === 'pending_deletion' && (
-                       <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-200 text-red-700 uppercase flex items-center gap-1">
-                          <AlertTriangle size={12} /> {t.pendingDeletion}
-                       </span>
-                   )}
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                    {/* Admin Restore Controls */}
-                    {selectedLesson.lesson.status === 'pending_deletion' && (userRole === 'admin' || userRole === 'methodist') && (
-                        <div className="flex gap-2">
+          <div className="flex flex-1 overflow-hidden">
+             {/* Main Lesson Editor */}
+             <div className="flex-1 flex flex-col overflow-hidden relative">
+                <div className={`p-4 border-b border-slate-100 flex justify-between items-center ${selectedLesson.lesson.status === 'pending_deletion' ? 'bg-red-50' : 'bg-slate-50'}`}>
+                    <div className="flex items-center gap-3 overflow-hidden">
+                       {canSetReadiness && (
+                           <div className="flex-shrink-0 flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-slate-300 group">
+                               <ReadinessControl 
+                                  value={selectedLesson.lesson.readiness || 0}
+                                  onChange={(val) => updateReadiness(val)}
+                               />
+                           </div>
+                       )}
+                       <h2 className={`font-bold text-lg truncate ${selectedLesson.lesson.status === 'pending_deletion' ? 'text-red-700' : 'text-slate-800'}`}>
+                         {selectedLesson.lesson.title}
+                       </h2>
+                       {selectedLesson.lesson.status === 'draft' && (
+                           <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-200 text-slate-600 uppercase">{t.draft}</span>
+                       )}
+                       {selectedLesson.lesson.status === 'pending_deletion' && (
+                           <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-200 text-red-700 uppercase flex items-center gap-1">
+                              <AlertTriangle size={12} /> {t.pendingDeletion}
+                           </span>
+                       )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        {/* AI Toggle Button */}
+                        {canModify(selectedLesson.courseId, selectedLesson.moduleId) && (
                             <button 
-                                onClick={() => handleRestore(selectedLesson.lesson, selectedLesson.courseId, selectedLesson.moduleId)}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-100 text-green-700 hover:bg-green-200"
+                                onClick={() => setShowAiPanel(!showAiPanel)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                    showAiPanel 
+                                    ? 'bg-purple-600 text-white shadow-md ring-2 ring-purple-100' 
+                                    : 'bg-white text-purple-600 border border-purple-200 hover:bg-purple-50'
+                                }`}
+                                title="AI Co-pilot"
                             >
-                                <RotateCcw size={16} /> {t.restoreAndBlock}
+                                <Sparkles size={16} /> 
+                                <span className="hidden lg:inline">{t.aiHelper.title}</span>
                             </button>
-                            <button 
-                                onClick={(e) => requestDelete(e, 'lesson', selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson.id)}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700"
-                            >
-                                <Trash2 size={16} /> {t.permanentlyDelete}
-                            </button>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Publish Button */}
-                    {canPublish && selectedLesson.lesson.status !== 'pending_deletion' && (
-                        <button 
-                            onClick={() => onPublishLesson?.(selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson.id, selectedLesson.lesson.status !== 'published')}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                selectedLesson.lesson.status === 'published' 
-                                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' 
-                                : 'bg-green-100 text-green-700 hover:bg-green-200'
-                            }`}
-                        >
-                            {selectedLesson.lesson.status === 'published' ? <EyeOff size={16} /> : <Eye size={16} />}
-                            {selectedLesson.lesson.status === 'published' ? t.unpublish : t.publish}
-                        </button>
-                    )}
-
-                    {canRate && selectedLesson.lesson.status !== 'pending_deletion' && (
-                        <div className="flex gap-0.5 mr-4">
-                            {[1, 2, 3, 4, 5].map(star => (
+                        {/* Admin Restore Controls */}
+                        {selectedLesson.lesson.status === 'pending_deletion' && (userRole === 'admin' || userRole === 'methodist') && (
+                            <div className="flex gap-2">
                                 <button 
-                                  key={star} 
-                                  onClick={() => handleRate(star)}
-                                  className={`hover:scale-110 transition-transform ${selectedLesson.lesson.rating && selectedLesson.lesson.rating >= star ? 'text-amber-400' : 'text-slate-300'}`}
+                                    onClick={() => handleRestore(selectedLesson.lesson, selectedLesson.courseId, selectedLesson.moduleId)}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-100 text-green-700 hover:bg-green-200"
                                 >
-                                    <Star size={16} fill={selectedLesson.lesson.rating && selectedLesson.lesson.rating >= star ? "currentColor" : "none"} />
+                                    <RotateCcw size={16} /> {t.restoreAndBlock}
                                 </button>
-                            ))}
+                                <button 
+                                    onClick={(e) => requestDelete(e, 'lesson', selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson.id)}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700"
+                                >
+                                    <Trash2 size={16} /> {t.permanentlyDelete}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Publish Button */}
+                        {canPublish && selectedLesson.lesson.status !== 'pending_deletion' && (
+                            <button 
+                                onClick={() => onPublishLesson?.(selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson.id, selectedLesson.lesson.status !== 'published')}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                    selectedLesson.lesson.status === 'published' 
+                                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' 
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                }`}
+                            >
+                                {selectedLesson.lesson.status === 'published' ? <EyeOff size={16} /> : <Eye size={16} />}
+                                {selectedLesson.lesson.status === 'published' ? t.unpublish : t.publish}
+                            </button>
+                        )}
+
+                        {canRate && selectedLesson.lesson.status !== 'pending_deletion' && (
+                            <div className="flex gap-0.5 mr-4">
+                                {[1, 2, 3, 4, 5].map(star => (
+                                    <button 
+                                      key={star} 
+                                      onClick={() => handleRate(star)}
+                                      className={`hover:scale-110 transition-transform ${selectedLesson.lesson.rating && selectedLesson.lesson.rating >= star ? 'text-amber-400' : 'text-slate-300'}`}
+                                    >
+                                        <Star size={16} fill={selectedLesson.lesson.rating && selectedLesson.lesson.rating >= star ? "currentColor" : "none"} />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {canModify(selectedLesson.courseId, selectedLesson.moduleId) && selectedLesson.lesson.status !== 'pending_deletion' && (
+                            !isEditing ? (
+                                <button 
+                                    onClick={() => setIsEditing(true)}
+                                    className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-indigo-700"
+                                >
+                                    <Edit3 size={16} /> {t.edit}
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={handleSaveContent}
+                                    className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700"
+                                >
+                                    <CheckCircle size={16} /> {t.saveChanges}
+                                </button>
+                            )
+                        )}
+                    </div>
+                </div>
+
+                <div className={`flex-1 overflow-y-auto p-8 space-y-6 ${selectedLesson.lesson.status === 'pending_deletion' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                    {selectedLesson.lesson.blocks.length === 0 && (
+                        <div className="text-center py-20 text-slate-400">
+                            <p>{t.draft}</p>
+                            {isEditing && <p className="text-sm mt-2">Use the tools below to add content.</p>}
                         </div>
                     )}
+                    {/* Content Rendering (Same as before) */}
+                    {selectedLesson.lesson.blocks.map((block, index) => (
+                        <div key={block.id} className={`relative group ${isEditing ? 'pl-8' : ''}`}>
+                             {/* ... (Editing controls - ArrowUp, Trash, ArrowDown - Same as before) ... */}
+                            {isEditing && (
+                                <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                      onClick={() => handleMoveBlock(index, 'up')} 
+                                      disabled={index === 0}
+                                      className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400"
+                                    >
+                                      <ArrowUp size={14} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteBlock(block.id)}
+                                      className="p-1 text-slate-400 hover:text-red-600"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleMoveBlock(index, 'down')} 
+                                      disabled={index === selectedLesson.lesson.blocks.length - 1}
+                                      className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400"
+                                    >
+                                      <ArrowDown size={14} />
+                                    </button>
+                                </div>
+                            )}
 
-                    {canModify(selectedLesson.courseId, selectedLesson.moduleId) && selectedLesson.lesson.status !== 'pending_deletion' && (
-                        !isEditing ? (
-                            <button 
-                                onClick={() => setIsEditing(true)}
-                                className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-indigo-700"
-                            >
-                                <Edit3 size={16} /> {t.edit}
-                            </button>
-                        ) : (
-                            <button 
-                                onClick={handleSaveContent}
-                                className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700"
-                            >
-                                <CheckCircle size={16} /> {t.saveChanges}
-                            </button>
-                        )
-                    )}
+                            {isEditing ? (
+                                // ... (Edit mode render same as before) ...
+                                 <div className="border border-indigo-100 rounded-lg bg-indigo-50/30 overflow-hidden">
+                                    {block.type === ContentType.TEXT ? (
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-1 border-b border-indigo-100 bg-indigo-50 px-2 py-1">
+                                                <button onClick={() => insertFormat(block.id, 'b')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="Bold"><Bold size={14} /></button>
+                                                <button onClick={() => insertFormat(block.id, 'i')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="Italic"><Italic size={14} /></button>
+                                                <button onClick={() => insertFormat(block.id, 'ul')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="List"><List size={14} /></button>
+                                            </div>
+                                            <textarea 
+                                                id={`textarea-${block.id}`}
+                                                value={block.content}
+                                                onChange={(e) => handleUpdateBlock(block.id, e.target.value)}
+                                                className="w-full h-32 p-3 focus:outline-none text-sm bg-white text-slate-900"
+                                                placeholder="Enter text here... use HTML tags or buttons above."
+                                            />
+                                        </div>
+                                    ) : block.type === ContentType.QUIZ ? (
+                                        <div className="p-3">
+                                            <div className="mb-2">
+                                                <label className="text-xs font-bold text-slate-500 uppercase">Question</label>
+                                                <input type="text" value={block.content} onChange={(e) => handleUpdateBlock(block.id, e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm mt-1 bg-white text-slate-900 placeholder:text-slate-400" placeholder="Enter question..." />
+                                            </div>
+                                            <div>
+                                                <div className="flex justify-between items-end mb-1">
+                                                    <label className="text-xs font-bold text-slate-500 uppercase">Options</label>
+                                                    <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">Select correct answer</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {block.metadata?.options?.map((opt: string, i: number) => (
+                                                        <div key={i} className="flex gap-2 items-center">
+                                                            <input type="radio" name={`quiz-correct-${block.id}`} checked={block.metadata?.correctIndex === i} onChange={() => setQuizCorrectAnswer(block.id, i)} className="mt-0.5 accent-indigo-600 w-4 h-4 cursor-pointer" />
+                                                            <input type="text" value={opt} onChange={(e) => handleQuizOptionChange(block.id, i, e.target.value)} className={`flex-1 p-1.5 text-sm border rounded bg-white text-slate-900 ${block.metadata?.correctIndex === i ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-300'}`} />
+                                                            <button onClick={() => removeQuizOption(block.id, i)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
+                                                        </div>
+                                                    ))}
+                                                    <button onClick={() => addQuizOption(block.id)} className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1 mt-2"><Plus size={12} /> Add Option</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : block.type === ContentType.IMAGE ? (
+                                        <div className="p-3">
+                                            <div className="flex gap-2 mb-2">
+                                               {block.content && block.content.startsWith('data:') && (<img src={block.content} alt="Preview" className="h-20 w-20 object-cover rounded border border-slate-200" />)}
+                                               <div className="flex-1 flex flex-col justify-center">
+                                                    <label className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded cursor-pointer hover:bg-slate-50 transition-colors w-fit mb-2"><Upload size={14} className="text-slate-500" /><span className="text-sm text-slate-700">Upload Image File</span><input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(block.id, e)} /></label>
+                                                    <p className="text-xs text-slate-400">or paste URL below</p>
+                                               </div>
+                                            </div>
+                                            <input type="text" value={block.content} onChange={(e) => handleUpdateBlock(block.id, e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm bg-white text-slate-900 placeholder:text-slate-400" placeholder="Image URL..." />
+                                        </div>
+                                    ) : (
+                                        <div className="p-3"><input type="text" value={block.content} onChange={(e) => handleUpdateBlock(block.id, e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm bg-white text-slate-900 placeholder:text-slate-400" placeholder="Content..." /></div>
+                                    )}
+                                    <div className="px-3 pb-1 text-[10px] text-indigo-400 font-mono uppercase text-right">{block.type}</div>
+                                </div>
+                            ) : (
+                                // ... (View mode render same as before) ...
+                                 <div className="prose max-w-none text-slate-900">
+                                    {block.type === ContentType.TEXT && (<div className="whitespace-pre-wrap bg-white rounded-lg p-4 shadow-sm border border-slate-100" dangerouslySetInnerHTML={{ __html: block.content }} />)}
+                                    {block.type === ContentType.IMAGE && (<img src={block.content} alt="Lesson content" className="rounded-lg shadow-sm max-h-96 object-cover bg-white" />)}
+                                    {block.type === ContentType.NOTE && (<div className="bg-amber-50 border-l-4 border-amber-400 p-4 text-amber-800 rounded-r text-sm italic shadow-sm"><span className="font-bold block not-italic mb-1">{t.teacherNote}:</span>{block.content}</div>)}
+                                    {block.type === ContentType.QUIZ && (
+                                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
+                                            <div className="flex justify-between items-start mb-4"><h4 className="font-bold flex items-center gap-2 text-slate-700"><CheckCircle size={16} /> {block.content}</h4>{quizState[block.id] && (<button onClick={() => resetQuiz(block.id)} className="text-slate-400 hover:text-indigo-600 p-1" title="Reset Quiz"><RefreshCw size={14} /></button>)}</div>
+                                            <div className="space-y-2">
+                                                {block.metadata?.options?.map((opt: string, i: number) => {
+                                                    const isSelected = quizState[block.id]?.selected === i;
+                                                    const hasAnswered = quizState[block.id]?.selected !== undefined;
+                                                    const isCorrectAnswer = block.metadata?.correctIndex === i;
+                                                    let stateStyles = "bg-white border-slate-200 hover:bg-slate-50";
+                                                    let icon = <div className={`w-4 h-4 rounded-full border border-slate-300`} />;
+                                                    if (hasAnswered) {
+                                                        if (isSelected) {
+                                                            if (isCorrectAnswer) { stateStyles = "bg-green-50 border-green-300 ring-1 ring-green-300"; icon = <div className="w-4 h-4 rounded-full border border-green-500 bg-green-500 flex items-center justify-center text-white text-[10px]">✓</div>; } 
+                                                            else { stateStyles = "bg-red-50 border-red-300 ring-1 ring-red-300"; icon = <div className="w-4 h-4 rounded-full border border-red-500 bg-red-500 flex items-center justify-center text-white text-[10px]">✕</div>; }
+                                                        } else if (isCorrectAnswer) { stateStyles = "bg-green-50/50 border-green-200 border-dashed"; }
+                                                    }
+                                                    return (<div key={i} onClick={() => !hasAnswered && handleQuizAnswer(block.id, i, block.metadata?.correctIndex)} className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${stateStyles} ${!hasAnswered ? 'cursor-pointer shadow-sm' : 'cursor-default'}`}><div className="flex-shrink-0 mt-0.5">{icon}</div><span className={`text-sm ${isSelected && isCorrectAnswer ? 'font-medium text-green-800' : isSelected ? 'font-medium text-red-800' : 'text-slate-700'}`}>{opt}</span></div>);
+                                                })}
+                                            </div>
+                                            {quizState[block.id] && (<div className={`mt-3 text-sm font-medium ${quizState[block.id].isCorrect ? 'text-green-600' : 'text-red-500'}`}>{quizState[block.id].isCorrect ? "Correct! Well done." : "Incorrect. Try again!"}</div>)}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ))}
                 </div>
-            </div>
 
-            <div className={`flex-1 overflow-y-auto p-8 space-y-6 ${selectedLesson.lesson.status === 'pending_deletion' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                {selectedLesson.lesson.blocks.length === 0 && (
-                    <div className="text-center py-20 text-slate-400">
-                        <p>{t.draft}</p>
-                        {isEditing && <p className="text-sm mt-2">Use the tools below to add content.</p>}
+                {isEditing && (
+                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2 overflow-x-auto">
+                        <button onClick={() => handleAddBlock(ContentType.TEXT)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap"><FileText size={16} /> {t.addText}</button>
+                        <button onClick={() => handleAddBlock(ContentType.IMAGE)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap"><ImageIcon size={16} /> {t.addImage}</button>
+                        <button onClick={() => handleAddBlock(ContentType.QUIZ)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap"><CheckCircle size={16} /> Quiz</button>
+                        <button onClick={() => handleAddBlock(ContentType.NOTE)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-amber-600 transition-colors whitespace-nowrap"><Edit3 size={16} /> {t.addNote}</button>
+                        <div className="w-px h-8 bg-slate-300 mx-1" />
+                        <button onClick={handleImportDoc} disabled={isConverting} className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-100 transition-colors whitespace-nowrap disabled:opacity-50">{isConverting ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />} {isConverting ? "Converting..." : t.importWord}</button>
+                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".docx" className="hidden" />
                     </div>
                 )}
-                {/* Content Rendering (Same as before) */}
-                {selectedLesson.lesson.blocks.map((block, index) => (
-                    <div key={block.id} className={`relative group ${isEditing ? 'pl-8' : ''}`}>
-                         {/* ... (Editing controls - ArrowUp, Trash, ArrowDown - Same as before) ... */}
-                        {isEditing && (
-                            <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                  onClick={() => handleMoveBlock(index, 'up')} 
-                                  disabled={index === 0}
-                                  className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400"
-                                >
-                                  <ArrowUp size={14} />
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteBlock(block.id)}
-                                  className="p-1 text-slate-400 hover:text-red-600"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                                <button 
-                                  onClick={() => handleMoveBlock(index, 'down')} 
-                                  disabled={index === selectedLesson.lesson.blocks.length - 1}
-                                  className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400"
-                                >
-                                  <ArrowDown size={14} />
-                                </button>
-                            </div>
-                        )}
+             </div>
 
-                        {isEditing ? (
-                            // ... (Edit mode render same as before) ...
-                             <div className="border border-indigo-100 rounded-lg bg-indigo-50/30 overflow-hidden">
-                                {block.type === ContentType.TEXT ? (
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-1 border-b border-indigo-100 bg-indigo-50 px-2 py-1">
-                                            <button onClick={() => insertFormat(block.id, 'b')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="Bold"><Bold size={14} /></button>
-                                            <button onClick={() => insertFormat(block.id, 'i')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="Italic"><Italic size={14} /></button>
-                                            <button onClick={() => insertFormat(block.id, 'ul')} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-700" title="List"><List size={14} /></button>
-                                        </div>
-                                        <textarea 
-                                            id={`textarea-${block.id}`}
-                                            value={block.content}
-                                            onChange={(e) => handleUpdateBlock(block.id, e.target.value)}
-                                            className="w-full h-32 p-3 focus:outline-none text-sm bg-white text-slate-900"
-                                            placeholder="Enter text here... use HTML tags or buttons above."
-                                        />
-                                    </div>
-                                ) : block.type === ContentType.QUIZ ? (
-                                    <div className="p-3">
-                                        <div className="mb-2">
-                                            <label className="text-xs font-bold text-slate-500 uppercase">Question</label>
-                                            <input type="text" value={block.content} onChange={(e) => handleUpdateBlock(block.id, e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm mt-1 bg-white text-slate-900 placeholder:text-slate-400" placeholder="Enter question..." />
-                                        </div>
-                                        <div>
-                                            <div className="flex justify-between items-end mb-1">
-                                                <label className="text-xs font-bold text-slate-500 uppercase">Options</label>
-                                                <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">Select correct answer</span>
-                                            </div>
-                                            <div className="space-y-2">
-                                                {block.metadata?.options?.map((opt: string, i: number) => (
-                                                    <div key={i} className="flex gap-2 items-center">
-                                                        <input type="radio" name={`quiz-correct-${block.id}`} checked={block.metadata?.correctIndex === i} onChange={() => setQuizCorrectAnswer(block.id, i)} className="mt-0.5 accent-indigo-600 w-4 h-4 cursor-pointer" />
-                                                        <input type="text" value={opt} onChange={(e) => handleQuizOptionChange(block.id, i, e.target.value)} className={`flex-1 p-1.5 text-sm border rounded bg-white text-slate-900 ${block.metadata?.correctIndex === i ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-300'}`} />
-                                                        <button onClick={() => removeQuizOption(block.id, i)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
-                                                    </div>
-                                                ))}
-                                                <button onClick={() => addQuizOption(block.id)} className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1 mt-2"><Plus size={12} /> Add Option</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : block.type === ContentType.IMAGE ? (
-                                    <div className="p-3">
-                                        <div className="flex gap-2 mb-2">
-                                           {block.content && block.content.startsWith('data:') && (<img src={block.content} alt="Preview" className="h-20 w-20 object-cover rounded border border-slate-200" />)}
-                                           <div className="flex-1 flex flex-col justify-center">
-                                                <label className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded cursor-pointer hover:bg-slate-50 transition-colors w-fit mb-2"><Upload size={14} className="text-slate-500" /><span className="text-sm text-slate-700">Upload Image File</span><input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(block.id, e)} /></label>
-                                                <p className="text-xs text-slate-400">or paste URL below</p>
-                                           </div>
-                                        </div>
-                                        <input type="text" value={block.content} onChange={(e) => handleUpdateBlock(block.id, e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm bg-white text-slate-900 placeholder:text-slate-400" placeholder="Image URL..." />
-                                    </div>
-                                ) : (
-                                    <div className="p-3"><input type="text" value={block.content} onChange={(e) => handleUpdateBlock(block.id, e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm bg-white text-slate-900 placeholder:text-slate-400" placeholder="Content..." /></div>
-                                )}
-                                <div className="px-3 pb-1 text-[10px] text-indigo-400 font-mono uppercase text-right">{block.type}</div>
-                            </div>
-                        ) : (
-                            // ... (View mode render same as before) ...
-                             <div className="prose max-w-none text-slate-900">
-                                {block.type === ContentType.TEXT && (<div className="whitespace-pre-wrap bg-white rounded-lg p-4 shadow-sm border border-slate-100" dangerouslySetInnerHTML={{ __html: block.content }} />)}
-                                {block.type === ContentType.IMAGE && (<img src={block.content} alt="Lesson content" className="rounded-lg shadow-sm max-h-96 object-cover bg-white" />)}
-                                {block.type === ContentType.NOTE && (<div className="bg-amber-50 border-l-4 border-amber-400 p-4 text-amber-800 rounded-r text-sm italic shadow-sm"><span className="font-bold block not-italic mb-1">{t.teacherNote}:</span>{block.content}</div>)}
-                                {block.type === ContentType.QUIZ && (
-                                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
-                                        <div className="flex justify-between items-start mb-4"><h4 className="font-bold flex items-center gap-2 text-slate-700"><CheckCircle size={16} /> {block.content}</h4>{quizState[block.id] && (<button onClick={() => resetQuiz(block.id)} className="text-slate-400 hover:text-indigo-600 p-1" title="Reset Quiz"><RefreshCw size={14} /></button>)}</div>
-                                        <div className="space-y-2">
-                                            {block.metadata?.options?.map((opt: string, i: number) => {
-                                                const isSelected = quizState[block.id]?.selected === i;
-                                                const hasAnswered = quizState[block.id]?.selected !== undefined;
-                                                const isCorrectAnswer = block.metadata?.correctIndex === i;
-                                                let stateStyles = "bg-white border-slate-200 hover:bg-slate-50";
-                                                let icon = <div className={`w-4 h-4 rounded-full border border-slate-300`} />;
-                                                if (hasAnswered) {
-                                                    if (isSelected) {
-                                                        if (isCorrectAnswer) { stateStyles = "bg-green-50 border-green-300 ring-1 ring-green-300"; icon = <div className="w-4 h-4 rounded-full border border-green-500 bg-green-500 flex items-center justify-center text-white text-[10px]">✓</div>; } 
-                                                        else { stateStyles = "bg-red-50 border-red-300 ring-1 ring-red-300"; icon = <div className="w-4 h-4 rounded-full border border-red-500 bg-red-500 flex items-center justify-center text-white text-[10px]">✕</div>; }
-                                                    } else if (isCorrectAnswer) { stateStyles = "bg-green-50/50 border-green-200 border-dashed"; }
-                                                }
-                                                return (<div key={i} onClick={() => !hasAnswered && handleQuizAnswer(block.id, i, block.metadata?.correctIndex)} className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${stateStyles} ${!hasAnswered ? 'cursor-pointer shadow-sm' : 'cursor-default'}`}><div className="flex-shrink-0 mt-0.5">{icon}</div><span className={`text-sm ${isSelected && isCorrectAnswer ? 'font-medium text-green-800' : isSelected ? 'font-medium text-red-800' : 'text-slate-700'}`}>{opt}</span></div>);
-                                            })}
-                                        </div>
-                                        {quizState[block.id] && (<div className={`mt-3 text-sm font-medium ${quizState[block.id].isCorrect ? 'text-green-600' : 'text-red-500'}`}>{quizState[block.id].isCorrect ? "Correct! Well done." : "Incorrect. Try again!"}</div>)}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
+             {/* AI Sidebar Panel */}
+             {showAiPanel && (
+                 <div className="w-80 border-l border-slate-200 bg-white flex flex-col shadow-xl z-20 transition-all">
+                     <div className="p-4 bg-purple-600 text-white flex justify-between items-center">
+                         <div className="flex items-center gap-2 font-bold">
+                             <Sparkles size={18} className="text-yellow-300" />
+                             {t.aiHelper.title}
+                         </div>
+                         <button onClick={() => setShowAiPanel(false)} className="text-white/80 hover:text-white p-1 hover:bg-purple-700 rounded">
+                             <X size={18} />
+                         </button>
+                     </div>
 
-            {isEditing && (
-                <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2 overflow-x-auto">
-                    <button onClick={() => handleAddBlock(ContentType.TEXT)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap"><FileText size={16} /> {t.addText}</button>
-                    <button onClick={() => handleAddBlock(ContentType.IMAGE)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap"><ImageIcon size={16} /> {t.addImage}</button>
-                    <button onClick={() => handleAddBlock(ContentType.QUIZ)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-indigo-600 transition-colors whitespace-nowrap"><CheckCircle size={16} /> Quiz</button>
-                    <button onClick={() => handleAddBlock(ContentType.NOTE)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-100 hover:text-amber-600 transition-colors whitespace-nowrap"><Edit3 size={16} /> {t.addNote}</button>
-                    <div className="w-px h-8 bg-slate-300 mx-1" />
-                    <button onClick={handleImportDoc} disabled={isConverting} className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-100 transition-colors whitespace-nowrap disabled:opacity-50">{isConverting ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />} {isConverting ? "Converting..." : t.importWord}</button>
-                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".docx" className="hidden" />
-                </div>
-            )}
-          </>
+                     <div className="p-2 bg-purple-50 flex gap-1 border-b border-purple-100">
+                         <button 
+                             onClick={() => setAiMode('grammar')}
+                             className={`flex-1 py-2 text-xs font-medium rounded transition-colors flex flex-col items-center gap-1 ${aiMode === 'grammar' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:bg-purple-100'}`}
+                         >
+                             <CheckSquare size={14} />
+                             {t.aiHelper.checkGrammar}
+                         </button>
+                         <button 
+                             onClick={() => setAiMode('ideas')}
+                             className={`flex-1 py-2 text-xs font-medium rounded transition-colors flex flex-col items-center gap-1 ${aiMode === 'ideas' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:bg-purple-100'}`}
+                         >
+                             <Lightbulb size={14} />
+                             {t.aiHelper.getIdeas}
+                         </button>
+                         <button 
+                             onClick={() => setAiMode('rewrite')}
+                             className={`flex-1 py-2 text-xs font-medium rounded transition-colors flex flex-col items-center gap-1 ${aiMode === 'rewrite' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:bg-purple-100'}`}
+                         >
+                             <Languages size={14} />
+                             {t.aiHelper.rewrite}
+                         </button>
+                     </div>
+
+                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                         {aiMode === 'rewrite' && (
+                             <div>
+                                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">{t.aiHelper.customPrompt}</label>
+                                 <textarea 
+                                     value={customPrompt}
+                                     onChange={(e) => setCustomPrompt(e.target.value)}
+                                     placeholder="e.g. Translate to Ukrainian..."
+                                     className="w-full text-sm p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 h-20 resize-none bg-slate-50"
+                                 />
+                             </div>
+                         )}
+
+                         {!aiResponse && !aiLoading && (
+                             <div className="text-center py-8 text-slate-400">
+                                 <Sparkles size={32} className="mx-auto mb-2 text-slate-300" />
+                                 <p className="text-sm">{t.aiHelper.placeholder}</p>
+                             </div>
+                         )}
+
+                         {aiLoading && (
+                             <div className="flex flex-col items-center justify-center py-8 gap-3 text-purple-600">
+                                 <Loader2 size={32} className="animate-spin" />
+                                 <p className="text-sm font-medium">{t.aiHelper.analyzing}</p>
+                             </div>
+                         )}
+
+                         {aiResponse && (
+                             <div className="prose prose-sm prose-purple max-w-none">
+                                 <h4 className="text-xs font-bold text-slate-400 uppercase border-b border-slate-100 pb-2 mb-3">{t.aiHelper.results}</h4>
+                                 <div className="whitespace-pre-wrap text-slate-700 text-sm">
+                                     {aiResponse}
+                                 </div>
+                             </div>
+                         )}
+                     </div>
+
+                     <div className="p-4 border-t border-slate-200 bg-slate-50">
+                         <button 
+                             onClick={handleAiAnalyze}
+                             disabled={aiLoading}
+                             className="w-full bg-purple-600 text-white py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                         >
+                             {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                             {t.aiHelper.analyze}
+                         </button>
+                     </div>
+                 </div>
+             )}
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
             <BookOpen size={48} className="mb-4 text-slate-200" />

@@ -1,4 +1,6 @@
+
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+import { Lesson, ContentType } from "../types";
 
 let chatSession: Chat | null = null;
 
@@ -12,6 +14,7 @@ const SYSTEM_INSTRUCTION = `
 3. Объяснение грамматики: Просто и доступно (или академически для высоких уровней).
 4. Concept Checking Questions (CCQs): Помощь в проверке понимания сложных слов или правил.
 5. Идеи для игр и активностей (для детей и взрослых).
+6. Рецензирование и корректура: Проверка материалов урока на ошибки, стиль и логику.
 
 Правила общения:
 - Если пользователь пишет на русском, отвечайте на русском (но сами упражнения на английском).
@@ -55,4 +58,47 @@ export const sendMessageToArchitect = async (message: string): Promise<string> =
     console.error("Gemini Error:", error);
     return "Проблемы с подключением к AI. Проверьте API ключ.";
   }
+};
+
+export const analyzeLessonContent = async (
+  lesson: Lesson, 
+  mode: 'grammar' | 'ideas' | 'rewrite',
+  customPrompt?: string
+): Promise<string> => {
+    // Extract text content from blocks
+    const contentText = lesson.blocks
+        .filter(b => b.type === ContentType.TEXT || b.type === ContentType.QUIZ)
+        .map(b => `[${b.type.toUpperCase()}] ${b.content} ${b.metadata ? JSON.stringify(b.metadata) : ''}`)
+        .join('\n\n');
+
+    if (!contentText.trim()) {
+        return "Lesson has no text content to analyze.";
+    }
+
+    let prompt = `CONTEXT: Analysis of Lesson "${lesson.title}".\n\nCONTENT:\n${contentText}\n\n`;
+
+    switch(mode) {
+        case 'grammar':
+            prompt += `TASK: Check this lesson content for spelling, grammar, and punctuation errors. 
+            Also point out any unnatural phrasing for an English learner. 
+            List errors with quotes and corrections. If no errors, say "Great job! No errors found."`;
+            break;
+        case 'ideas':
+            prompt += `TASK: Suggest 3 creative activities to improve this lesson.
+            1. An Ice-breaker or Warm-up relevant to the content.
+            2. A 'Cooler' or wrap-up activity.
+            3. A fun way to practice the specific vocabulary/grammar in the content.
+            Be brief and practical.`;
+            break;
+        case 'rewrite':
+            if (customPrompt) {
+                 prompt += `TASK: ${customPrompt}`;
+            } else {
+                 prompt += `TASK: Suggest a better, more natural wording for the main text blocks. 
+                 Provide a version for a higher level and a version for a lower level.`;
+            }
+            break;
+    }
+
+    return sendMessageToArchitect(prompt);
 };

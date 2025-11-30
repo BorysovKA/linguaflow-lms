@@ -114,6 +114,17 @@ export const translations = {
     permanentlyDelete: "Permanently Delete",
     level: "Level (CEFR)",
     targetAudience: "Target Audience",
+    aiHelper: {
+      title: "AI Co-pilot",
+      checkGrammar: "Check Grammar",
+      getIdeas: "Get Ideas",
+      rewrite: "Rewrite",
+      analyze: "Analyze Lesson",
+      analyzing: "Analyzing content...",
+      results: "AI Suggestions",
+      placeholder: "Select a mode to get help with this lesson.",
+      customPrompt: "Or ask something specific about this text:"
+    },
     logs: {
       contentUpdated: "Content updated manually",
       readinessUpdated: "Readiness updated to",
@@ -265,6 +276,17 @@ export const translations = {
     permanentlyDelete: "Видалити назавжди",
     level: "Рівень (CEFR)",
     targetAudience: "Аудиторія",
+    aiHelper: {
+      title: "AI Co-pilot",
+      checkGrammar: "Перевірка",
+      getIdeas: "Ідеї",
+      rewrite: "Рерайт",
+      analyze: "Аналізувати",
+      analyzing: "Аналізую вміст...",
+      results: "Пропозиції AI",
+      placeholder: "Оберіть режим допомоги для цього уроку.",
+      customPrompt: "Або запитайте щось конкретне про цей текст:"
+    },
     logs: {
       contentUpdated: "Вміст оновлено вручну",
       readinessUpdated: "Готовність оновлено до",
