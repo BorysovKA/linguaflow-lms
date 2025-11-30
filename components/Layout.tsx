@@ -95,7 +95,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
               <div>
                  <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">{t.planning}</p>
                  <NavItem id="architect" label={t.aiArchitect} icon={Sparkles} roles={['admin', 'methodist']} />
-                 <NavItem id="users" label={t.users} icon={Users} roles={['admin']} />
+                 <NavItem id="users" label={t.users} icon={Users} roles={['admin', 'methodist']} />
                  <NavItem id="access" label={t.accessControl} icon={ShieldCheck} roles={['admin', 'methodist']} />
                  <NavItem id="settings" label={t.settings} icon={Settings} roles={['admin']} />
               </div>
@@ -167,7 +167,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
                <div className="flex items-center gap-4">
                   <div className="hidden md:flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm focus-within:ring-2 focus-within:ring-teal-100 transition-all">
                       <Search size={18} className="text-slate-400" />
-                      <input type="text" placeholder="Search..." className="bg-transparent border-none focus:outline-none text-sm w-40 placeholder:text-slate-400 text-slate-700" />
+                      <input type="text" placeholder={t.searchPlaceholder} className="bg-transparent border-none focus:outline-none text-sm w-40 placeholder:text-slate-400 text-slate-700" />
                   </div>
                   <button className="w-10 h-10 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-teal hover:shadow-md transition-all relative">
                       <Bell size={20} />

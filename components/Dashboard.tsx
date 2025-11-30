@@ -72,7 +72,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, courses, logs, onNav
           <div className="relative z-10 flex justify-between items-center">
              <div>
                 <h1 className="text-3xl font-bold mb-2">{t.welcomeBack}, {user.name}! 👋</h1>
-                <p className="text-slate-300 max-w-lg">Ready to continue managing your language curriculum? You have <strong className="text-white">{courses.length} active courses</strong> today.</p>
+                <p className="text-slate-300 max-w-lg">{t.readyToManage} <strong className="text-white">{courses.length} {t.activeCoursesToday}</strong></p>
              </div>
              {user.role === 'admin' && (
                  <button onClick={() => onNavigate('settings')} className="hidden md:flex bg-white/10 hover:bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-sm font-medium transition-colors border border-white/10">
@@ -97,11 +97,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, courses, logs, onNav
                     <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
                         <TrendingUp size={20} />
                     </div>
-                    <h3 className="font-bold text-lg text-slate-800">Weekly Activity</h3>
+                    <h3 className="font-bold text-lg text-slate-800">{t.weeklyActivity}</h3>
                 </div>
                 <select className="bg-slate-50 border-none text-sm font-medium text-slate-600 rounded-lg px-3 py-1.5 focus:ring-0 cursor-pointer hover:bg-slate-100">
-                    <option>Last 7 Days</option>
-                    <option>Last Month</option>
+                    <option>{t.last7Days}</option>
+                    <option>{t.lastMonth}</option>
                 </select>
              </div>
              
@@ -118,7 +118,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, courses, logs, onNav
                                     <div className="absolute inset-0 bg-gradient-to-t from-indigo-500 to-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                                     {/* Tooltip */}
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-slate-800 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap z-20 pointer-events-none transform translate-y-2 group-hover:translate-y-0">
-                                        {day.count} Actions
+                                        {day.count} {t.actionsCount}
                                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45"></div>
                                     </div>
                                 </div>
@@ -163,8 +163,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, courses, logs, onNav
       {/* Quick Actions / Recent (Placeholder for future) */}
       <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100/50">
           <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold text-lg text-slate-800">Recent Updates</h3>
-              <button className="text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">View All</button>
+              <h3 className="font-bold text-lg text-slate-800">{t.recentUpdates}</h3>
+              <button className="text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">{t.viewAll}</button>
           </div>
           <div className="space-y-4">
               {logs.slice(0, 3).map((log) => (
@@ -179,7 +179,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, courses, logs, onNav
                       <span className="text-xs font-medium text-slate-400">{new Date(log.timestamp).toLocaleDateString()}</span>
                   </div>
               ))}
-              {logs.length === 0 && <p className="text-slate-400 text-center py-4">No recent activity.</p>}
+              {logs.length === 0 && <p className="text-slate-400 text-center py-4">{t.noActivity}</p>}
           </div>
       </div>
     </div>

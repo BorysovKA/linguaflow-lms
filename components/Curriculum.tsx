@@ -606,22 +606,22 @@ export const Curriculum: React.FC<CurriculumProps> = ({
         {editingItem && (
              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                 <div className="bg-white rounded-xl p-6 w-96 shadow-xl">
-                    <h3 className="text-lg font-bold mb-4">{t.edit} {editingItem.type}</h3>
+                    <h3 className="text-lg font-bold mb-4">{t.edit} {t.targetTypes[editingItem.type as keyof typeof t.targetTypes]}</h3>
                     <form onSubmit={submitEdit} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">{t.title}</label>
                             <input autoFocus type="text" value={editingItem.title} onChange={e => setEditingItem({...editingItem, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         {editingItem.type === 'course' && (
                             <>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Color</label>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.color}</label>
                                     <div className="flex gap-2 flex-wrap">
                                         {COURSE_COLORS.map(c => (
                                             <button type="button" key={c.name} onClick={() => setEditingItem({...editingItem, color: c.class})} className={`w-8 h-8 rounded-full border-2 ${c.class.replace('bg-', 'bg-').split(' ')[0]} ${editingItem.color === c.class ? 'ring-2 ring-offset-2 ring-slate-400 border-white' : 'border-transparent'}`}></button>
                                         ))}
                                     </div>
                                 </div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Icon</label>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.icon}</label>
                                     <div className="flex gap-2 flex-wrap">
                                         {COURSE_ICONS.map(i => (
                                             <button type="button" key={i.name} onClick={() => setEditingItem({...editingItem, icon: i.name})} className={`w-8 h-8 rounded-lg flex items-center justify-center border ${editingItem.icon === i.name ? 'bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
@@ -630,8 +630,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                         ))}
                                     </div>
                                 </div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Level</label><select value={editingItem.level} onChange={e => setEditingItem({...editingItem, level: e.target.value})} className="w-full p-2 border rounded">{levels.map(l => <option key={l} value={l}>{l}</option>)}</select></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Audience</label><select value={editingItem.audience} onChange={e => setEditingItem({...editingItem, audience: e.target.value})} className="w-full p-2 border rounded">{audiences.map(a => <option key={a} value={a}>{a}</option>)}</select></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.level}</label><select value={editingItem.level} onChange={e => setEditingItem({...editingItem, level: e.target.value})} className="w-full p-2 border rounded">{levels.map(l => <option key={l} value={l}>{l}</option>)}</select></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.targetAudience}</label><select value={editingItem.audience} onChange={e => setEditingItem({...editingItem, audience: e.target.value})} className="w-full p-2 border rounded">{audiences.map(a => <option key={a} value={a}>{a}</option>)}</select></div>
                             </>
                         )}
                         <div className="flex justify-end gap-2 mt-4">
@@ -733,6 +733,7 @@ const MoveCopyModal: React.FC<{
 };
 
 const StatsPanel: React.FC<{ user: User; activityLog: ActivityLogEntry[] }> = ({ user, activityLog }) => {
+    const { t } = useLanguage();
     // Logic: 
     // Teacher -> sees only their own actions count
     // Admin/Methodist -> sees breakdown by user
@@ -767,21 +768,21 @@ const StatsPanel: React.FC<{ user: User; activityLog: ActivityLogEntry[] }> = ({
             <div className="grid grid-cols-3 gap-2">
                 <div className="bg-green-50 p-3 rounded-lg text-center border border-green-100">
                     <div className="text-2xl font-bold text-green-700">{stats.created}</div>
-                    <div className="text-xs text-green-600 font-medium">Created</div>
+                    <div className="text-xs text-green-600 font-medium">{t.createdCount}</div>
                 </div>
                 <div className="bg-blue-50 p-3 rounded-lg text-center border border-blue-100">
                     <div className="text-2xl font-bold text-blue-700">{stats.updated}</div>
-                    <div className="text-xs text-blue-600 font-medium">Edited</div>
+                    <div className="text-xs text-blue-600 font-medium">{t.editedCount}</div>
                 </div>
                 <div className="bg-red-50 p-3 rounded-lg text-center border border-red-100">
                     <div className="text-2xl font-bold text-red-700">{stats.deleted}</div>
-                    <div className="text-xs text-red-600 font-medium">Deleted</div>
+                    <div className="text-xs text-red-600 font-medium">{t.deletedCount}</div>
                 </div>
             </div>
 
             {user.role !== 'teacher' && (
                 <div>
-                    <h4 className="text-sm font-bold text-slate-500 uppercase mb-3">Team Performance</h4>
+                    <h4 className="text-sm font-bold text-slate-500 uppercase mb-3">{t.teamPerformance}</h4>
                     <div className="space-y-3">
                         {Object.values(stats.userStats).map((u, idx) => (
                             <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -793,7 +794,7 @@ const StatsPanel: React.FC<{ user: User; activityLog: ActivityLogEntry[] }> = ({
                                 </div>
                             </div>
                         ))}
-                        {Object.keys(stats.userStats).length === 0 && <p className="text-slate-400 text-sm">No activity recorded yet.</p>}
+                        {Object.keys(stats.userStats).length === 0 && <p className="text-slate-400 text-sm">{t.noActivity}</p>}
                     </div>
                 </div>
             )}
