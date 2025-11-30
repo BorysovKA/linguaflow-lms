@@ -134,8 +134,6 @@ const MainApp: React.FC = () => {
       // 2. If we know who deleted it, deny them future access
       if (deletedBy) {
           users.denyUserAccess(deletedBy, lessonId);
-          // Log this specific denial logic is handled inside denyUserAccess or we can log it separately if needed
-          // The restoreLesson already logs the restore action
       }
   };
 
@@ -202,6 +200,7 @@ const MainApp: React.FC = () => {
             levels={settings.settings.levels}
             audiences={settings.settings.targetAudiences}
             initialSelection={curriculumNavigation}
+            activityLog={activity.activityLog}
             onUpdateLesson={courses.updateLesson}
             onAddLesson={courses.addLesson}
             onAddCourse={() => courses.addCourse(settings.settings.levels[0] || 'A1', settings.settings.targetAudiences[0] || 'General')}
@@ -220,6 +219,10 @@ const MainApp: React.FC = () => {
             onDeleteLesson={courses.deleteLesson}
             onRestoreLesson={handleRestoreLesson}
             onPublishLesson={courses.publishLesson}
+            onCopyLesson={courses.copyLessonTo}
+            onMoveLessonTo={courses.moveLessonTo}
+            onCopyModule={courses.copyModuleTo}
+            onMoveModuleTo={courses.moveModuleTo}
           />
         );
       case 'architect':

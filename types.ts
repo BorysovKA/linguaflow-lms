@@ -61,6 +61,8 @@ export interface Course {
   level: string;           
   targetAudience: string;  
   modules: CourseModule[];
+  color?: string; // Hex code or tailwind class for tile background
+  icon?: string; // Icon name
 }
 
 export interface ChatMessage {
@@ -70,7 +72,7 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename' | 'publish' | 'access_grant' | 'restore' | 'access_deny';
+export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename' | 'publish' | 'access_grant' | 'restore' | 'access_deny' | 'copy';
 export type TargetType = 'course' | 'module' | 'lesson' | 'settings' | 'group' | 'user';
 
 export interface ActivityLogEntry {
