@@ -138,7 +138,11 @@ export const Curriculum: React.FC<CurriculumProps> = ({
               // Filter Lessons
               const validLessons = m.lessons.filter(l => (isContentVisible(c.id, m.id, l.id) || isModuleAllowed) && isDraftVisible(l));
               return { ...m, lessons: validLessons };
-          }).filter(m => m.lessons.length > 0);
+          }).filter(m => {
+              // FIX: Show empty modules to non-students (Admins, Methodists, Teachers) so they can add lessons
+              if (userRole !== 'student') return true;
+              return m.lessons.length > 0;
+          });
 
           return { ...c, modules: validModules };
       }).filter(c => {
