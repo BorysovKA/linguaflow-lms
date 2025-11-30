@@ -1,7 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Course, Lesson, ContentBlock, ContentType, UserRole, User, Group } from '../types';
-import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen, Loader2, RefreshCw, Eye, EyeOff, RotateCcw, Sparkles, MessageSquare, Lightbulb, CheckSquare, Languages } from 'lucide-react';
+import { 
+  ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, 
+  Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, 
+  X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, 
+  FolderClosed, BookOpen, Loader2, RefreshCw, Eye, EyeOff, RotateCcw, 
+  Sparkles, Lightbulb, CheckSquare, Languages, Search, ChevronLeft, MoreVertical, LayoutGrid
+} from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { analyzeLessonContent } from '../services/geminiService';
 
@@ -54,7 +60,12 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   onRestoreLesson,
   onPublishLesson
 }) => {
+  // Navigation State
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [courseSearchTerm, setCourseSearchTerm] = useState('');
+  
+  // Editor State
   const [selectedLesson, setSelectedLesson] = useState<{ courseId: string, moduleId: string, lesson: Lesson } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
@@ -94,7 +105,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       // Admins and Methodists see everything
       if (userRole === 'admin' || userRole === 'methodist') return true;
 
-      // Check denied content (Blocklist) - specific override
+      // Check denied content (Blocklist)
       if (lessonId && user.deniedContent?.includes(lessonId)) return false;
 
       const userAllowed = user.allowedContent || [];
@@ -116,57 +127,25 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   };
 
   const isDraftVisible = (lesson: Lesson): boolean => {
-      // Admin/Methodist see pending deletions
-      if (lesson.status === 'pending_deletion') {
-          return userRole === 'admin' || userRole === 'methodist';
-      }
-
+      if (lesson.status === 'pending_deletion') return userRole === 'admin' || userRole === 'methodist';
       if (lesson.status === 'published') return true;
-      
-      // Drafts: Visible to Admin, Methodist, or Author
       if (userRole === 'admin' || userRole === 'methodist') return true;
       if (userRole === 'teacher' && lesson.authorId === user.id) return true;
       return false;
   };
 
-  // Filter the course tree based on visibility
-  const visibleCourses = courses.filter(c => isContentVisible(c.id) || c.modules.some(m => isContentVisible(c.id, m.id) || m.lessons.some(l => isContentVisible(c.id, m.id, l.id))))
-      .map(c => {
-          // If Course is explicitly allowed, show all. If not, filter modules.
-          const isCourseAllowed = isContentVisible(c.id);
-          
-          // Filter Modules
-          const validModules = c.modules.filter(m => {
-              const isModuleAllowed = isContentVisible(c.id, m.id) || isCourseAllowed;
-              // Show module if allowed, OR if it has allowed lessons
-              return isModuleAllowed || m.lessons.some(l => isContentVisible(c.id, m.id, l.id));
-          }).map(m => {
-              const isModuleAllowed = isContentVisible(c.id, m.id) || isCourseAllowed;
-              
-              // Filter Lessons
-              const validLessons = m.lessons.filter(l => (isContentVisible(c.id, m.id, l.id) || isModuleAllowed) && isDraftVisible(l));
-              return { ...m, lessons: validLessons };
-          }).filter(m => {
-              // FIX: Show empty modules to non-students (Admins, Methodists, Teachers) so they can add lessons
-              if (userRole !== 'student') return true;
-              return m.lessons.length > 0;
-          });
-
-          return { ...c, modules: validModules };
-      }).filter(c => {
-          // FIX: Allow empty courses to be visible for Admins/Methodists so they can add content
-          if (userRole === 'admin' || userRole === 'methodist') return true;
-          // For others, only show if it has content
-          return c.modules.length > 0;
-      });
+  // Filter courses logic
+  const visibleCourses = courses.filter(c => 
+    (isContentVisible(c.id) || c.modules.some(m => isContentVisible(c.id, m.id) || m.lessons.some(l => isContentVisible(c.id, m.id, l.id)))) &&
+    (c.title.toLowerCase().includes(courseSearchTerm.toLowerCase()) || c.level.toLowerCase().includes(courseSearchTerm.toLowerCase()))
+  );
 
   // -----------------------
 
   useEffect(() => {
     if (initialSelection) {
-      if (initialSelection.moduleId) {
-        setExpandedModules(prev => ({ ...prev, [initialSelection.moduleId!]: true }));
-      }
+      if (initialSelection.courseId) setActiveCourseId(initialSelection.courseId);
+      if (initialSelection.moduleId) setExpandedModules(prev => ({ ...prev, [initialSelection.moduleId!]: true }));
       
       if (initialSelection.lessonId && initialSelection.courseId && initialSelection.moduleId) {
         const course = courses.find(c => c.id === initialSelection.courseId);
@@ -175,11 +154,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
         
         if (course && module && lesson) {
             setSelectedLesson({ courseId: course.id, moduleId: module.id, lesson });
-            // Reset quiz state when changing lessons
             setQuizState({});
-            // Reset AI Panel
             setAiResponse(null);
-            // Don't close panel if already open, just reset content
         }
       }
     }
@@ -189,21 +165,10 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));
   };
   
-  const expandAll = () => {
-      const allModules: Record<string, boolean> = {};
-      courses.forEach(c => c.modules.forEach(m => allModules[m.id] = true));
-      setExpandedModules(allModules);
-  };
-
-  const collapseAll = () => {
-      setExpandedModules({});
-  };
-
   // Permission Logic
   const canModify = (courseId: string, moduleId?: string) => {
       if (userRole === 'admin' || userRole === 'methodist') return true;
       if (userRole === 'teacher') {
-          // Teacher can add/edit if they have access to the parent container
           if (moduleId) return isContentVisible(courseId, moduleId);
           return isContentVisible(courseId);
       }
@@ -242,47 +207,33 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       }
   };
 
-  // ... (Quiz Logic Redacted for brevity, same as previous) ...
+  // ... (Quiz & Delete logic remains same) ...
   const handleQuizAnswer = (blockId: string, optionIndex: number, correctIndex: number) => {
     setQuizState(prev => ({ ...prev, [blockId]: { selected: optionIndex, isCorrect: optionIndex === correctIndex } }));
   };
   const resetQuiz = (blockId: string) => { setQuizState(prev => { const newState = { ...prev }; delete newState[blockId]; return newState; }); };
-  // ...
 
   const requestDelete = (e: React.MouseEvent, type: 'course' | 'module' | 'lesson', id1: string, id2?: string, id3?: string) => {
     e.stopPropagation();
     e.preventDefault();
-    
-    // Determine if it's a soft delete (teacher deleting lesson) or hard delete (admin/methodist)
-    // Teachers effectively "Request Deletion" which hides it from them
     const isSoft = userRole === 'teacher' && type === 'lesson';
-
-    setDeleteConfirmation({
-      isOpen: true,
-      type,
-      ids: { id1, id2, id3 },
-      isSoftDelete: isSoft
-    });
+    setDeleteConfirmation({ isOpen: true, type, ids: { id1, id2, id3 }, isSoftDelete: isSoft });
   };
 
   const confirmDelete = () => {
     if (!deleteConfirmation) return;
     const { type, ids, isSoftDelete } = deleteConfirmation;
-
     if (type === 'course') {
         onDeleteCourse?.(ids.id1);
         if (selectedLesson?.courseId === ids.id1) setSelectedLesson(null);
+        if (activeCourseId === ids.id1) setActiveCourseId(null);
     }
     if (type === 'module' && ids.id2) {
         onDeleteModule?.(ids.id1, ids.id2);
         if (selectedLesson?.moduleId === ids.id2) setSelectedLesson(null);
     }
     if (type === 'lesson' && ids.id2 && ids.id3) {
-        // Pass "force = true" if it's NOT a soft delete (Admin/Methodist actually deleting)
-        // Teachers: force = false (soft delete)
         onDeleteLesson?.(ids.id1, ids.id2, ids.id3, !isSoftDelete);
-        
-        // If teacher soft-deletes the current lesson, unselect it
         if (selectedLesson?.lesson.id === ids.id3) setSelectedLesson(null);
     }
     setDeleteConfirmation(null);
@@ -291,7 +242,6 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   const handleRestore = (lesson: Lesson, courseId: string, moduleId: string) => {
       onRestoreLesson?.(courseId, moduleId, lesson.id, lesson.deletedBy);
       if (selectedLesson?.lesson.id === lesson.id) {
-          // Update local selection to reflect restored status (optional, usually re-render handles it)
           setSelectedLesson({ ...selectedLesson, lesson: { ...lesson, status: 'draft', deletedBy: undefined }});
       }
   };
@@ -307,12 +257,12 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     if (!selectedLesson) return;
     const updatedLesson = { ...selectedLesson.lesson, rating: newRating };
     setSelectedLesson({ ...selectedLesson, lesson: updatedLesson });
-    
     if (!isEditing && onUpdateLesson) {
         onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, updatedLesson, `${t.logs.ratingUpdated} ${newRating}`);
     }
   };
 
+  // Block handlers
   const handleAddBlock = (type: ContentType, initialContent: string = '') => {
     if (!selectedLesson) return;
     let metadata = undefined;
@@ -325,8 +275,6 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     };
     setSelectedLesson({ ...selectedLesson, lesson: { ...selectedLesson.lesson, blocks: [...selectedLesson.lesson.blocks, newBlock] } });
   };
-  
-  // ... (Block update logic mostly same) ...
   const handleUpdateBlock = (blockId: string, content: string) => {
      if (!selectedLesson) return;
      const updatedBlocks = selectedLesson.lesson.blocks.map(b => b.id === blockId ? { ...b, content } : b);
@@ -344,8 +292,6 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     else if (direction === 'down' && index < blocks.length - 1) [blocks[index], blocks[index + 1]] = [blocks[index + 1], blocks[index]];
     setSelectedLesson({ ...selectedLesson, lesson: { ...selectedLesson.lesson, blocks } });
   };
-  // ...
-
   const insertFormat = (blockId: string, tag: 'b' | 'i' | 'ul') => {
     const textarea = document.getElementById(`textarea-${blockId}`) as HTMLTextAreaElement;
     if (!textarea || !selectedLesson) return;
@@ -353,7 +299,6 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     let replacement = ''; if (tag === 'b') replacement = `<b>${selectedText}</b>`; if (tag === 'i') replacement = `<i>${selectedText}</i>`; if (tag === 'ul') replacement = `\n<ul>\n  <li>${selectedText}</li>\n</ul>\n`;
     const newContent = text.substring(0, start) + replacement + text.substring(end); handleUpdateBlock(blockId, newContent);
   };
-  // ... (Quiz option handlers) ...
   const handleQuizOptionChange = (blockId: string, optIndex: number, newVal: string) => {
     if (!selectedLesson) return;
     const updatedBlocks = selectedLesson.lesson.blocks.map(b => {
@@ -376,7 +321,6 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     const updatedBlocks = selectedLesson.lesson.blocks.map(b => { if (b.id !== blockId) return b; const newOptions = (b.metadata?.options || []).filter((_: any, i: number) => i !== optIndex); let newCorrect = b.metadata?.correctIndex || 0; if (optIndex < newCorrect) newCorrect--; if (newCorrect >= newOptions.length) newCorrect = Math.max(0, newOptions.length - 1); return { ...b, metadata: { ...b.metadata, options: newOptions, correctIndex: newCorrect } }; });
     setSelectedLesson({ ...selectedLesson, lesson: { ...selectedLesson.lesson, blocks: updatedBlocks } });
   };
-
   const handleImageUpload = (blockId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onloadend = () => { handleUpdateBlock(blockId, reader.result as string); }; reader.readAsDataURL(file);
   };
@@ -398,22 +342,10 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       setEditingItem(null);
   };
 
-  const getCourseStats = (course: Course) => {
-    let totalRating = 0; let totalReadiness = 0; let ratedLessons = 0; let totalLessons = 0;
-    course.modules.forEach(m => { m.lessons.forEach(l => { totalLessons++; if (l.rating) { totalRating += l.rating; ratedLessons++; } if (l.readiness) { totalReadiness += l.readiness; } }); });
-    return { avgRating: ratedLessons > 0 ? (totalRating / ratedLessons).toFixed(1) : '-', avgReadiness: totalLessons > 0 ? Math.round(totalReadiness / totalLessons) : 0 };
-  };
-  const getModuleStats = (lessons: Lesson[]) => {
-    let totalRating = 0; let totalReadiness = 0; let ratedLessons = 0;
-    lessons.forEach(l => { if (l.rating) { totalRating += l.rating; ratedLessons++; } if (l.readiness) { totalReadiness += l.readiness; } });
-    return { avgRating: ratedLessons > 0 ? (totalRating / ratedLessons).toFixed(1) : '-', avgReadiness: lessons.length > 0 ? Math.round(totalReadiness / lessons.length) : 0 };
-  };
-
   const updateReadiness = (val: number) => {
     if (!selectedLesson) return; const updatedLesson = { ...selectedLesson.lesson, readiness: val }; setSelectedLesson({ ...selectedLesson, lesson: updatedLesson });
     if (onUpdateLesson) { onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, updatedLesson, `${t.logs.readinessUpdated} ${val}%`); }
   };
-  
   const getReadinessColor = (val: number) => {
       if (val === 100) return 'bg-green-500 border-green-600'; if (val >= 75) return 'bg-indigo-500 border-indigo-600'; if (val >= 50) return 'bg-yellow-400 border-yellow-500'; return 'bg-orange-400 border-orange-500';
   };
@@ -426,192 +358,214 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       );
   };
 
-  return (
-    <div className="flex h-[calc(100vh-3rem)] gap-4 relative">
-      {/* Sidebar List - Fixed Width */}
-      <div className="w-[360px] flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-        {/* ... (Existing Sidebar Code) ... */}
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h2 className="font-bold text-lg text-slate-800">{t.courses}</h2>
-          <div className="flex gap-1">
-             <button onClick={expandAll} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded border border-transparent hover:border-slate-200 transition-all" title="Expand All"><FolderOpen size={16} /></button>
-             <button onClick={collapseAll} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded border border-transparent hover:border-slate-200 transition-all" title="Collapse All"><FolderClosed size={16} /></button>
-             {canModify('all') && <button onClick={onAddCourse} className="ml-1 text-xs bg-indigo-600 text-white hover:bg-indigo-700 px-2 py-1.5 rounded transition-colors flex items-center gap-1 shadow-sm"><Plus size={14} /> {t.addCourse}</button>}
+  // --------------------------------------------------------------------------------
+  // SIDEBAR RENDER LOGIC (Drill-down)
+  // --------------------------------------------------------------------------------
+
+  const renderSidebarContent = () => {
+    // VIEW 1: Module & Lesson Tree (Drill Down)
+    if (activeCourseId) {
+      const activeCourse = courses.find(c => c.id === activeCourseId);
+      if (!activeCourse) return null; // Should not happen
+
+      const canModifyCourse = canModify(activeCourse.id);
+
+      return (
+        <div className="flex flex-col h-full bg-slate-50/50">
+          {/* Header with Back Button */}
+          <div className="p-4 border-b border-slate-200 bg-white sticky top-0 z-10 flex items-center gap-2">
+            <button 
+              onClick={() => setActiveCourseId(null)}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-indigo-600 transition-colors"
+              title="Back to Courses"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <div className="flex-1 min-w-0">
+               <h3 className="font-bold text-slate-800 text-sm truncate" title={activeCourse.title}>
+                 {activeCourse.title}
+               </h3>
+               <span className="text-xs text-slate-400 font-medium bg-slate-100 px-1.5 py-0.5 rounded">{activeCourse.level}</span>
+            </div>
+            {canModifyCourse && (
+                 <button 
+                   onClick={() => onAddModule && onAddModule(activeCourse.id)}
+                   className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100"
+                   title={t.addModule}
+                 >
+                   <Plus size={18} />
+                 </button>
+            )}
+          </div>
+
+          {/* Module Tree */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+             {activeCourse.modules.length === 0 && (
+                 <div className="text-center py-10 text-slate-400 text-sm">
+                    No modules yet. Click + to add one.
+                 </div>
+             )}
+             
+             {activeCourse.modules.map((module, mIdx) => {
+                 const canModifyModule = canModify(activeCourse.id, module.id);
+                 const isExpanded = expandedModules[module.id];
+                 
+                 return (
+                   <div key={module.id} className="group">
+                     {/* Module Header */}
+                     <div className="flex items-center justify-between mb-1">
+                        <button 
+                          onClick={() => toggleModule(module.id)}
+                          className="flex-1 flex items-center gap-2 p-2 hover:bg-white rounded-lg text-sm font-bold text-slate-700 text-left min-w-0 transition-colors"
+                        >
+                           {isExpanded ? <FolderOpen size={16} className="text-indigo-500" /> : <FolderClosed size={16} className="text-slate-400" />}
+                           <span className="truncate">{module.title}</span>
+                           <span className="text-xs text-slate-400 font-normal ml-auto px-2">{module.lessons.length}</span>
+                        </button>
+                        
+                        {canModifyModule && (
+                           <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => initiateEditModule(activeCourse.id, module)} className="p-1.5 text-slate-400 hover:text-indigo-600"><PenLine size={14} /></button>
+                              <div className="flex flex-col">
+                                <button onClick={() => onMoveModule?.(activeCourse.id, mIdx, 'up')} className="p-0.5 text-slate-300 hover:text-indigo-600"><ArrowUp size={10} /></button>
+                                <button onClick={() => onMoveModule?.(activeCourse.id, mIdx, 'down')} className="p-0.5 text-slate-300 hover:text-indigo-600"><ArrowDown size={10} /></button>
+                              </div>
+                              <button onClick={(e) => requestDelete(e, 'module', activeCourse.id, module.id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={14} /></button>
+                           </div>
+                        )}
+                     </div>
+
+                     {/* Lessons List */}
+                     {isExpanded && (
+                       <div className="ml-4 pl-3 border-l-2 border-slate-200 space-y-1 relative">
+                          {module.lessons.map((lesson, lIdx) => (
+                             <div key={lesson.id} className="relative group/lesson flex items-center pr-1">
+                                <button
+                                   onClick={() => handleLessonSelect(activeCourse.id, module.id, lesson)}
+                                   className={`flex-1 text-left text-sm py-2 px-3 rounded-lg flex items-center gap-2 min-w-0 transition-all ${
+                                     selectedLesson?.lesson.id === lesson.id 
+                                     ? 'bg-white text-indigo-700 shadow-sm border border-indigo-100 font-medium' 
+                                     : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
+                                   } ${lesson.status === 'pending_deletion' ? 'opacity-60 bg-red-50/50' : ''}`}
+                                >
+                                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                        lesson.status === 'published' ? 'bg-emerald-400' :
+                                        lesson.status === 'pending_deletion' ? 'bg-red-400' : 'bg-slate-300'
+                                    }`} />
+                                    <span className={`truncate ${lesson.status === 'pending_deletion' ? 'line-through text-red-800' : ''}`}>
+                                        {lesson.title}
+                                    </span>
+                                </button>
+                                
+                                {canModifyModule && (
+                                   <div className="absolute right-2 hidden group-hover/lesson:flex items-center bg-white/90 backdrop-blur rounded shadow-sm border border-slate-100">
+                                      <button onClick={() => initiateEditLesson(activeCourse.id, module.id, lesson)} className="p-1.5 text-slate-400 hover:text-indigo-600"><PenLine size={12} /></button>
+                                      <button onClick={() => onMoveLesson?.(activeCourse.id, module.id, lIdx, 'up')} className="p-1.5 text-slate-400 hover:text-indigo-600"><ArrowUp size={12} /></button>
+                                      <button onClick={() => onMoveLesson?.(activeCourse.id, module.id, lIdx, 'down')} className="p-1.5 text-slate-400 hover:text-indigo-600"><ArrowDown size={12} /></button>
+                                      <button onClick={(e) => requestDelete(e, 'lesson', activeCourse.id, module.id, lesson.id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={12} /></button>
+                                   </div>
+                                )}
+                             </div>
+                          ))}
+                          {canModifyModule && (
+                             <button 
+                               onClick={() => onAddLesson && onAddLesson(activeCourse.id, module.id)}
+                               className="ml-3 mt-1 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 px-2 py-1.5 hover:bg-indigo-50 rounded transition-colors"
+                             >
+                                <Plus size={14} /> {t.addLesson}
+                             </button>
+                          )}
+                       </div>
+                     )}
+                   </div>
+                 );
+             })}
           </div>
         </div>
-        
-        <div className="overflow-y-auto p-4 space-y-4 flex-1">
-          {visibleCourses.length === 0 && (
-              <div className="text-center text-slate-400 py-8">
-                  <p>No content available.</p>
-              </div>
-          )}
-          {visibleCourses.map((course, cIdx) => {
-            const cStats = getCourseStats(course);
-            const canModifyCourse = canModify(course.id);
-            return (
-              <div key={course.id} className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
-                <div className="bg-slate-50 p-3 font-semibold text-slate-700">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-base truncate pr-2" title={course.title}>{course.title}</span>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {canModifyCourse && (
-                        <>
-                          <button 
-                            onClick={() => initiateEditCourse(course)} 
-                            className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
-                          >
-                            <PenLine size={14} />
-                          </button>
-                          <button onClick={() => onMoveCourse?.(cIdx, 'up')} className="p-1.5 hover:bg-slate-200 rounded text-slate-400"><ArrowUp size={14} /></button>
-                          <button onClick={() => onMoveCourse?.(cIdx, 'down')} className="p-1.5 hover:bg-slate-200 rounded text-slate-400"><ArrowDown size={14} /></button>
-                          <button 
-                            type="button"
-                            onClick={(e) => requestDelete(e, 'course', course.id)} 
-                            className="p-1.5 hover:bg-red-100 rounded text-slate-400 hover:text-red-600"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 text-xs font-normal mb-1">
-                      <span className={`text-xs border px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border-slate-200`}>
-                        {course.level}
-                      </span>
-                  </div>
-                  {/* Show stats only for teachers/admins */}
-                  {userRole !== 'student' && (
-                    <div className="flex gap-2 text-xs font-normal">
-                      <span className="flex items-center gap-1 bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100">
-                        <Star size={10} /> {t.avgRating}: {cStats.avgRating}
-                      </span>
-                      <span className="flex items-center gap-1 bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-100">
-                        <BarChart3 size={10} /> {t.avgReadiness}: {cStats.avgReadiness}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="p-2 space-y-3">
-                  {course.modules.map((module, mIdx) => {
-                     const mStats = getModuleStats(module.lessons);
-                     const canModifyModule = canModify(course.id, module.id);
-                     return (
-                      <div key={module.id}>
-                        <div className="flex items-center justify-between group">
-                          <button 
-                            onClick={() => toggleModule(module.id)}
-                            className="flex-1 flex items-center gap-2 p-2 hover:bg-slate-50 rounded text-sm font-medium text-slate-600 text-left min-w-0"
-                          >
-                            {expandedModules[module.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                            <span className="truncate">{module.title}</span>
-                          </button>
-                          {canModifyModule && (
-                            <div className="hidden group-hover:flex items-center gap-1 mr-2 flex-shrink-0">
-                              <button onClick={() => initiateEditModule(course.id, module)} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600"><PenLine size={12} /></button>
-                              <button onClick={() => onMoveModule?.(course.id, mIdx, 'up')} className="p-1 hover:bg-slate-100 rounded text-slate-400"><ArrowUp size={12} /></button>
-                              <button onClick={() => onMoveModule?.(course.id, mIdx, 'down')} className="p-1 hover:bg-slate-100 rounded text-slate-400"><ArrowDown size={12} /></button>
-                              <button 
-                                type="button"
-                                onClick={(e) => requestDelete(e, 'module', course.id, module.id)} 
-                                className="p-1 hover:bg-red-100 rounded text-slate-400 hover:text-red-600"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          )}
+      );
+    }
+
+    // VIEW 2: Course List (Root)
+    return (
+      <div className="flex flex-col h-full">
+         <div className="p-4 border-b border-slate-100 bg-white">
+            <h2 className="font-bold text-lg text-slate-800 mb-3">{t.courses}</h2>
+            <div className="relative mb-3">
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+               <input 
+                  type="text" 
+                  placeholder="Search courses..." 
+                  value={courseSearchTerm}
+                  onChange={(e) => setCourseSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+               />
+            </div>
+            {canModify('all') && (
+                <button 
+                   onClick={onAddCourse} 
+                   className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-sm"
+                >
+                   <Plus size={16} /> {t.addCourse}
+                </button>
+            )}
+         </div>
+
+         <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50">
+            {visibleCourses.map((course, idx) => {
+               const canModifyCourse = canModify(course.id);
+               // Simple stats calculation
+               const totalLessons = course.modules.reduce((acc, m) => acc + m.lessons.length, 0);
+               
+               return (
+                  <div 
+                     key={course.id}
+                     onClick={() => setActiveCourseId(course.id)}
+                     className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
+                  >
+                     <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1 min-w-0">
+                           <h3 className="font-bold text-slate-800 text-sm truncate">{course.title}</h3>
+                           <p className="text-xs text-slate-500 truncate mt-0.5">{course.targetAudience}</p>
                         </div>
-                        {userRole !== 'student' && (
-                            <div className="px-8 flex gap-2 text-[10px] text-slate-400 mb-1">
-                            <span>{t.avgRating}: {mStats.avgRating}</span>
-                            <span>{t.avgReadiness}: {mStats.avgReadiness}%</span>
+                        {canModifyCourse && (
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                <button onClick={() => initiateEditCourse(course)} className="p-1.5 text-slate-400 hover:text-indigo-600 bg-slate-50 rounded hover:bg-white"><PenLine size={14} /></button>
+                                <button onClick={(e) => requestDelete(e, 'course', course.id)} className="p-1.5 text-slate-400 hover:text-red-600 bg-slate-50 rounded hover:bg-white"><Trash2 size={14} /></button>
                             </div>
                         )}
-                        
-                        {expandedModules[module.id] && (
-                          <div className="ml-6 mt-1 space-y-1 pl-2 border-l border-slate-200">
-                            {module.lessons.map((lesson, lIdx) => (
-                              <div key={lesson.id} className="group flex items-center gap-1 pr-1">
-                                <button
-                                  onClick={() => handleLessonSelect(course.id, module.id, lesson)}
-                                  className={`flex-1 text-left text-sm p-2 rounded flex items-center gap-2 min-w-0 ${
-                                    selectedLesson?.lesson.id === lesson.id 
-                                    ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                                    : 'text-slate-500 hover:text-slate-900'
-                                  } ${lesson.status === 'pending_deletion' ? 'opacity-75 bg-red-50/50' : ''}`}
-                                >
-                                  {/* Status indicator */}
-                                  <div 
-                                    className={`w-2 h-2 rounded-full flex-shrink-0 
-                                      ${lesson.status === 'published' ? 'bg-green-400' 
-                                        : lesson.status === 'pending_deletion' ? 'bg-red-500' 
-                                        : 'bg-slate-300'}`} 
-                                    title={lesson.status} 
-                                  />
-                                  <span className={`truncate ${lesson.status === 'draft' ? 'italic text-slate-400' : ''} ${lesson.status === 'pending_deletion' ? 'text-red-600 line-through decoration-red-300' : ''}`}>
-                                      {lesson.title}
-                                  </span>
-                                </button>
-                                {canModifyModule && (
-                                  <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
-                                      {lesson.status !== 'pending_deletion' && (
-                                        <>
-                                          <div className="flex flex-col">
-                                              <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'up')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowUp size={10} /></button>
-                                              <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'down')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowDown size={10} /></button>
-                                          </div>
-                                          <button 
-                                            type="button"
-                                            onClick={() => initiateEditLesson(course.id, module.id, lesson)} 
-                                            className="text-slate-300 hover:text-indigo-600 p-1"
-                                            title="Rename Lesson"
-                                          >
-                                              <PenLine size={12} />
-                                          </button>
-                                        </>
-                                      )}
-                                      <button 
-                                        type="button"
-                                        onClick={(e) => requestDelete(e, 'lesson', course.id, module.id, lesson.id)} 
-                                        className="text-slate-300 hover:text-red-500 p-1"
-                                        title="Delete"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            {canModifyModule && (
-                              <button 
-                                onClick={() => onAddLesson && onAddLesson(course.id, module.id)}
-                                className="text-xs text-indigo-500 hover:underline px-2 py-1 mt-1"
-                              >
-                                {t.addLesson}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {canModify(course.id) && (
-                    <button 
-                      onClick={() => onAddModule && onAddModule(course.id)}
-                      className="w-full text-xs text-slate-400 border border-dashed border-slate-200 p-2 rounded hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1"
-                    >
-                      <Plus size={12} /> {t.addModule}
-                    </button>
-                  )}
+                     </div>
+                     
+                     <div className="flex items-center justify-between mt-3">
+                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">
+                           {course.level}
+                        </span>
+                        <div className="flex items-center gap-3 text-xs text-slate-400 font-medium">
+                           <span className="flex items-center gap-1"><LayoutGrid size={12} /> {course.modules.length}</span>
+                           <span className="flex items-center gap-1"><FileText size={12} /> {totalLessons}</span>
+                        </div>
+                     </div>
+                  </div>
+               );
+            })}
+            
+            {visibleCourses.length === 0 && (
+                <div className="text-center py-10 text-slate-400 text-sm">
+                   No courses found.
                 </div>
-              </div>
-            );
-          })}
-        </div>
+            )}
+         </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-3rem)] gap-4 relative">
+      {/* Sidebar - Drill Down Navigation */}
+      <div className="w-[360px] flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+         {renderSidebarContent()}
       </div>
 
-      {/* Content Area - Fluid Width */}
+      {/* Content Area - Fluid Width (Remains mostly unchanged in logic) */}
       <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm flex overflow-hidden">
         {selectedLesson ? (
           <div className="flex flex-1 overflow-hidden">
