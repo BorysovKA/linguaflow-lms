@@ -17,20 +17,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const user = users.find(u => u.username === username);
-    const isValidPassword = user?.password ? user.password === password : password.length > 0;
+    const isValidPassword = user?.password ? user.password === password : false; // Strict password check
 
     if (user && isValidPassword) {
       onLogin(user);
     } else {
-      setError('Invalid credentials (try password: 123)');
-    }
-  };
-
-  const prefill = (role: string) => {
-    const u = users.find(u => u.role === role);
-    if(u) {
-      setUsername(u.username);
-      setPassword(u.password || '123');
+      setError('Invalid credentials');
     }
   };
 
@@ -97,21 +89,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
             {t.signIn}
           </button>
         </form>
-
-        <div className="mt-8 border-t border-slate-100 pt-6">
-          <p className="text-xs text-slate-400 text-center mb-3">{t.quickLogin}</p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {['admin', 'methodist', 'teacher', 'student'].map(role => (
-              <button 
-                key={role}
-                onClick={() => prefill(role)}
-                className="text-xs px-3 py-1 bg-slate-50 hover:bg-slate-200 text-slate-600 rounded-full border border-slate-200 transition-colors capitalize"
-              >
-                {t.roles[role as keyof typeof t.roles] || role}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

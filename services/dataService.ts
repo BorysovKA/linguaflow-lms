@@ -1,6 +1,5 @@
 import { User, Course, ActivityLogEntry } from '../types';
 import { supabase } from './supabaseClient.ts';
-import { MOCK_USERS, MOCK_COURSES } from './mockData';
 
 export const dataService = {
   async init(): Promise<{ users: User[], courses: Course[], logs: ActivityLogEntry[], isConnected: boolean }> {
@@ -13,7 +12,7 @@ export const dataService = {
         .select('*');
       
       if (usersError) {
-        console.warn("Supabase Users Error (Using Mocks):", usersError.message);
+        console.error("Supabase Users Error:", usersError.message);
         throw usersError;
       }
 
@@ -23,7 +22,7 @@ export const dataService = {
         .select('*');
 
       if (coursesError) {
-        console.warn("Supabase Courses Error:", coursesError.message);
+        console.error("Supabase Courses Error:", coursesError.message);
         throw coursesError;
       }
 
@@ -34,14 +33,6 @@ export const dataService = {
         .order('timestamp', { ascending: false })
         .limit(100);
 
-      // --- AUTO-SEEDING LOGIC ---
-      if ((!usersData || usersData.length === 0) && (!coursesData || coursesData.length === 0)) {
-        console.log("Connected to Supabase, but DB is empty. Seeding with initial data...");
-        await this.saveUsers(MOCK_USERS);
-        await this.saveCourses(MOCK_COURSES);
-        return { users: MOCK_USERS, courses: MOCK_COURSES, logs: [], isConnected: true };
-      }
-
       console.log("Successfully loaded data from Supabase.");
       return { 
         users: usersData || [], 
@@ -51,8 +42,9 @@ export const dataService = {
       };
 
     } catch (e) {
-      console.log("Falling back to local Mock Data mode.");
-      return { users: MOCK_USERS, courses: MOCK_COURSES, logs: [], isConnected: false };
+      console.error("Critical: Failed to load data from Supabase.", e);
+      // Return empty state on error, forcing the user to fix the DB or connection
+      return { users: [], courses: [], logs: [], isConnected: false };
     }
   },
 
