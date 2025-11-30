@@ -141,7 +141,12 @@ export const Curriculum: React.FC<CurriculumProps> = ({
           }).filter(m => m.lessons.length > 0);
 
           return { ...c, modules: validModules };
-      }).filter(c => c.modules.length > 0);
+      }).filter(c => {
+          // FIX: Allow empty courses to be visible for Admins/Methodists so they can add content
+          if (userRole === 'admin' || userRole === 'methodist') return true;
+          // For others, only show if it has content
+          return c.modules.length > 0;
+      });
 
   // -----------------------
 
@@ -256,7 +261,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
 
   const handleSaveContent = () => {
     if (selectedLesson && onUpdateLesson) {
-      onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson, "Content updated manually");
+      onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, selectedLesson.lesson, t.logs.contentUpdated);
       setIsEditing(false);
     }
   };
@@ -267,7 +272,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     setSelectedLesson({ ...selectedLesson, lesson: updatedLesson });
     
     if (!isEditing && onUpdateLesson) {
-        onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, updatedLesson, `Rating changed to ${newRating}`);
+        onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, updatedLesson, `${t.logs.ratingUpdated} ${newRating}`);
     }
   };
 
@@ -369,7 +374,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
 
   const updateReadiness = (val: number) => {
     if (!selectedLesson) return; const updatedLesson = { ...selectedLesson.lesson, readiness: val }; setSelectedLesson({ ...selectedLesson, lesson: updatedLesson });
-    if (onUpdateLesson) { onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, updatedLesson, `Readiness updated to ${val}%`); }
+    if (onUpdateLesson) { onUpdateLesson(selectedLesson.courseId, selectedLesson.moduleId, updatedLesson, `${t.logs.readinessUpdated} ${val}%`); }
   };
   
   const getReadinessColor = (val: number) => {
@@ -825,11 +830,11 @@ export const Curriculum: React.FC<CurriculumProps> = ({
             <div className="bg-white rounded-xl p-6 w-96 shadow-xl border border-slate-100">
                 <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-slate-900">{editingItem.type === 'course' ? t.edit : t.rename}</h3><button onClick={() => setEditingItem(null)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button></div>
                 <form onSubmit={submitEdit} className="space-y-4">
-                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Title</label><input autoFocus type="text" value={editingItem.title} onChange={e => setEditingItem({...editingItem, title: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white" /></div>
+                    <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.newCourseTitle}</label><input autoFocus type="text" value={editingItem.title} onChange={e => setEditingItem({...editingItem, title: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white" /></div>
                     {editingItem.type === 'course' && (
                       <>
-                        <div><label className="block text-sm font-medium text-slate-700 mb-1">Level (CEFR)</label><select value={editingItem.level} onChange={e => setEditingItem({...editingItem, level: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white">{levels.map(l => (<option key={l} value={l}>{l}</option>))}</select></div>
-                        <div><label className="block text-sm font-medium text-slate-700 mb-1">Target Audience</label><select value={editingItem.audience} onChange={e => setEditingItem({...editingItem, audience: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white">{audiences.map(a => (<option key={a} value={a}>{a}</option>))}</select></div>
+                        <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.level}</label><select value={editingItem.level} onChange={e => setEditingItem({...editingItem, level: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white">{levels.map(l => (<option key={l} value={l}>{l}</option>))}</select></div>
+                        <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.targetAudience}</label><select value={editingItem.audience} onChange={e => setEditingItem({...editingItem, audience: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white">{audiences.map(a => (<option key={a} value={a}>{a}</option>))}</select></div>
                       </>
                     )}
                     <div className="flex gap-2 justify-end mt-6"><button type="button" onClick={() => setEditingItem(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">{t.cancel}</button><button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">{t.saveChanges}</button></div>

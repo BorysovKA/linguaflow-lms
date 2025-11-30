@@ -22,7 +22,7 @@ export const useCourses = (
   // --- Lessons ---
 
   const updateLesson = (courseId: string, moduleId: string, updatedLesson: Lesson, description?: string) => {
-    logAction(currentUser, 'update', 'lesson', updatedLesson.title, description || 'Content updated', { courseId, moduleId, lessonId: updatedLesson.id });
+    logAction(currentUser, 'update', 'lesson', updatedLesson.title, description || t.logs.contentUpdated, { courseId, moduleId, lessonId: updatedLesson.id });
     
     setCourses(prev => prev.map(c => c.id !== courseId ? c : {
       ...c,
@@ -34,7 +34,7 @@ export const useCourses = (
   };
 
   const publishLesson = (courseId: string, moduleId: string, lessonId: string, isPublished: boolean) => {
-     logAction(currentUser, 'publish', 'lesson', isPublished ? 'Published' : 'Unpublished', undefined, { courseId, moduleId, lessonId });
+     logAction(currentUser, 'publish', 'lesson', isPublished ? t.logs.published : t.logs.unpublished, undefined, { courseId, moduleId, lessonId });
      setCourses(prev => prev.map(c => c.id !== courseId ? c : {
       ...c,
       modules: c.modules.map(m => m.id !== moduleId ? m : {
@@ -67,7 +67,7 @@ export const useCourses = (
       blocks: []
     };
     
-    logAction(currentUser, 'create', 'lesson', newLesson.title, undefined, { courseId, moduleId, lessonId: newLesson.id });
+    logAction(currentUser, 'create', 'lesson', newLesson.title, t.logs.created, { courseId, moduleId, lessonId: newLesson.id });
 
     setCourses(prev => prev.map(c => c.id !== courseId ? c : {
       ...c,
@@ -103,7 +103,7 @@ export const useCourses = (
   const deleteLesson = (courseId: string, moduleId: string, lessonId: string, force: boolean = false) => {
     if (force) {
         // Hard Delete
-        logAction(currentUser, 'delete', 'lesson', 'Lesson', undefined, { courseId, moduleId, lessonId });
+        logAction(currentUser, 'delete', 'lesson', 'Lesson', t.logs.deleted, { courseId, moduleId, lessonId });
         setCourses(prev => prev.map(c => c.id !== courseId ? c : {
            ...c,
            modules: c.modules.map(m => m.id !== moduleId ? m : {
@@ -113,7 +113,7 @@ export const useCourses = (
        }));
     } else {
         // Soft Delete (Mark as pending)
-        logAction(currentUser, 'delete', 'lesson', 'Lesson (Pending)', 'Requested deletion', { courseId, moduleId, lessonId });
+        logAction(currentUser, 'delete', 'lesson', 'Lesson', t.pendingDeletion, { courseId, moduleId, lessonId });
         setCourses(prev => prev.map(c => c.id !== courseId ? c : {
             ...c,
             modules: c.modules.map(m => m.id !== moduleId ? m : {
@@ -129,7 +129,7 @@ export const useCourses = (
   };
 
   const restoreLesson = (courseId: string, moduleId: string, lessonId: string) => {
-      logAction(currentUser, 'restore', 'lesson', 'Lesson', 'Restored from pending deletion', { courseId, moduleId, lessonId });
+      logAction(currentUser, 'restore', 'lesson', 'Lesson', t.logs.restored, { courseId, moduleId, lessonId });
       setCourses(prev => prev.map(c => c.id !== courseId ? c : {
           ...c,
           modules: c.modules.map(m => m.id !== moduleId ? m : {
@@ -151,7 +151,7 @@ export const useCourses = (
         title: t.newModuleTitle,
         lessons: []
     };
-    logAction(currentUser, 'create', 'module', newModule.title, undefined, { courseId, moduleId: newModule.id });
+    logAction(currentUser, 'create', 'module', newModule.title, t.logs.created, { courseId, moduleId: newModule.id });
     setCourses(prev => prev.map(c => c.id !== courseId ? c : {
         ...c,
         modules: [...c.modules, newModule]
@@ -182,7 +182,7 @@ export const useCourses = (
   };
 
   const deleteModule = (courseId: string, moduleId: string) => {
-    logAction(currentUser, 'delete', 'module', 'Module', undefined, { courseId, moduleId });
+    logAction(currentUser, 'delete', 'module', 'Module', t.logs.deleted, { courseId, moduleId });
     setCourses(prev => prev.map(c => c.id !== courseId ? c : {
         ...c,
         modules: c.modules.filter(m => m.id !== moduleId)
@@ -199,7 +199,7 @@ export const useCourses = (
         targetAudience: defaultAudience,
         modules: []
     };
-    logAction(currentUser, 'create', 'course', newCourse.title, undefined, { courseId: newCourse.id });
+    logAction(currentUser, 'create', 'course', newCourse.title, t.logs.created, { courseId: newCourse.id });
     setCourses(prev => [...prev, newCourse]);
   };
 
@@ -222,7 +222,7 @@ export const useCourses = (
 
   const deleteCourse = (id: string) => {
     const c = courses.find(x => x.id === id);
-    if (c) logAction(currentUser, 'delete', 'course', c.title, undefined, { courseId: id });
+    if (c) logAction(currentUser, 'delete', 'course', c.title, t.logs.deleted, { courseId: id });
     setCourses(prev => prev.filter(x => x.id !== id));
   };
 
