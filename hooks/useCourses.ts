@@ -275,15 +275,16 @@ export const useCourses = (
         level: defaultLevel,
         targetAudience: defaultAudience,
         modules: [],
-        color: 'bg-indigo-50' // Default color
+        color: 'bg-indigo-50', // Default color
+        icon: 'Book'
     };
     logAction(currentUser, 'create', 'course', newCourse.title, t.logs.created, { courseId: newCourse.id });
     setCourses(prev => [...prev, newCourse]);
   };
 
-  const updateCourse = (id: string, title: string, level: string, audience: string, color?: string) => {
+  const updateCourse = (id: string, title: string, level: string, audience: string, color?: string, icon?: string) => {
     logAction(currentUser, 'update', 'course', title, `Level: ${level}, Aud: ${audience}`, { courseId: id });
-    setCourses(prev => prev.map(c => c.id !== id ? c : { ...c, title, level, targetAudience: audience, color: color || c.color }));
+    setCourses(prev => prev.map(c => c.id !== id ? c : { ...c, title, level, targetAudience: audience, color: color || c.color, icon: icon || c.icon }));
   };
 
   const reorderCourse = (fromIndex: number, toIndex: number) => {

@@ -6,7 +6,8 @@ import {
   Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, 
   X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, 
   FolderClosed, BookOpen, Loader2, RefreshCw, Eye, EyeOff, RotateCcw, 
-  Sparkles, Lightbulb, CheckSquare, Languages, Search, ChevronLeft, MoreVertical, LayoutGrid, Copy, Move, PieChart
+  Sparkles, Lightbulb, CheckSquare, Languages, Search, ChevronLeft, MoreVertical, LayoutGrid, Copy, Move, PieChart,
+  Globe, Laptop, Palette, Dna, Calculator, Music, Briefcase, MessageCircle, GraduationCap, Rocket
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { analyzeLessonContent } from '../services/geminiService';
@@ -39,7 +40,7 @@ interface CurriculumProps {
   onMoveModule?: (courseId: string, index: number, direction: 'up' | 'down') => void;
   onMoveLesson?: (courseId: string, moduleId: string, index: number, direction: 'up' | 'down') => void;
   
-  onUpdateCourse?: (id: string, title: string, level: string, audience: string, color?: string) => void;
+  onUpdateCourse?: (id: string, title: string, level: string, audience: string, color?: string, icon?: string) => void;
   onRenameModule?: (courseId: string, moduleId: string, newTitle: string) => void;
   onRenameLesson?: (courseId: string, moduleId: string, lessonId: string, newTitle: string) => void;
   
@@ -64,6 +65,19 @@ const COURSE_COLORS = [
     { name: 'Amber', class: 'bg-amber-50 border-amber-100 text-amber-700' },
     { name: 'Emerald', class: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
     { name: 'Slate', class: 'bg-slate-50 border-slate-100 text-slate-700' },
+];
+
+const COURSE_ICONS = [
+  { name: 'Book', icon: BookOpen },
+  { name: 'Business', icon: Briefcase },
+  { name: 'Tech', icon: Laptop },
+  { name: 'Science', icon: Dna },
+  { name: 'Math', icon: Calculator },
+  { name: 'Art', icon: Palette },
+  { name: 'Music', icon: Music },
+  { name: 'Global', icon: Globe },
+  { name: 'Chat', icon: MessageCircle },
+  { name: 'Rocket', icon: Rocket }
 ];
 
 // --- Sortable Item Wrapper ---
@@ -147,6 +161,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     level?: string;
     audience?: string;
     color?: string;
+    icon?: string;
   } | null>(null);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
@@ -280,7 +295,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   const submitEdit = (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingItem) return;
-      if (editingItem.type === 'course') onUpdateCourse?.(editingItem.id, editingItem.title, editingItem.level || levels[0], editingItem.audience || audiences[0], editingItem.color);
+      if (editingItem.type === 'course') onUpdateCourse?.(editingItem.id, editingItem.title, editingItem.level || levels[0], editingItem.audience || audiences[0], editingItem.color, editingItem.icon);
       if (editingItem.type === 'module' && editingItem.parentId) onRenameModule?.(editingItem.parentId, editingItem.id, editingItem.title);
       if (editingItem.type === 'lesson' && editingItem.parentId && editingItem.moduleId) onRenameLesson?.(editingItem.parentId, editingItem.moduleId, editingItem.id, editingItem.title);
       setEditingItem(null);
@@ -329,6 +344,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                   {courses.map(course => {
                       const tileColor = COURSE_COLORS.find(c => course.color?.includes(c.name))?.class || course.color || 'bg-white border-slate-200';
                       const lessonCount = course.modules.reduce((acc, m) => acc + m.lessons.length, 0);
+                      const IconComponent = COURSE_ICONS.find(i => i.name === course.icon)?.icon || BookOpen;
 
                       return (
                           <SortableItem key={course.id} id={course.id} disabled={!canModify()}>
@@ -338,11 +354,11 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                               >
                                   <div className="flex justify-between items-start mb-4">
                                       <div className="bg-white/80 p-2 rounded-xl backdrop-blur-sm shadow-sm text-slate-700">
-                                          <BookOpen size={24} />
+                                          <IconComponent size={24} />
                                       </div>
                                       {canModify(course.id) && (
                                           <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 rounded-lg shadow-sm flex" onClick={e => e.stopPropagation()}>
-                                              <button onClick={() => setEditingItem({ type: 'course', id: course.id, title: course.title, level: course.level, audience: course.targetAudience, color: course.color })} className="p-2 hover:text-indigo-600"><PenLine size={16} /></button>
+                                              <button onClick={() => setEditingItem({ type: 'course', id: course.id, title: course.title, level: course.level, audience: course.targetAudience, color: course.color, icon: course.icon })} className="p-2 hover:text-indigo-600"><PenLine size={16} /></button>
                                               <button onClick={(e) => requestDelete(e, 'course', course.id)} className="p-2 hover:text-red-600"><Trash2 size={16} /></button>
                                           </div>
                                       )}
@@ -601,7 +617,16 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Color</label>
                                     <div className="flex gap-2 flex-wrap">
                                         {COURSE_COLORS.map(c => (
-                                            <button type="button" key={c.name} onClick={() => setEditingItem({...editingItem, color: c.class})} className={`w-6 h-6 rounded-full border ${c.class.replace('bg-', 'bg-').split(' ')[0]} ${editingItem.color === c.class ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`}></button>
+                                            <button type="button" key={c.name} onClick={() => setEditingItem({...editingItem, color: c.class})} className={`w-8 h-8 rounded-full border-2 ${c.class.replace('bg-', 'bg-').split(' ')[0]} ${editingItem.color === c.class ? 'ring-2 ring-offset-2 ring-slate-400 border-white' : 'border-transparent'}`}></button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Icon</label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {COURSE_ICONS.map(i => (
+                                            <button type="button" key={i.name} onClick={() => setEditingItem({...editingItem, icon: i.name})} className={`w-8 h-8 rounded-lg flex items-center justify-center border ${editingItem.icon === i.name ? 'bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                                <i.icon size={16} />
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
