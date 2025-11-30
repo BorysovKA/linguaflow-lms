@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Course, Lesson, ContentBlock, ContentType, UserRole } from '../types';
-import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen, Loader2, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface CurriculumProps {
@@ -18,6 +18,7 @@ interface CurriculumProps {
   onMoveLesson?: (courseId: string, moduleId: string, index: number, direction: 'up' | 'down') => void;
   onUpdateCourse?: (id: string, title: string, level: string, audience: string) => void;
   onRenameModule?: (courseId: string, moduleId: string, newTitle: string) => void;
+  onRenameLesson?: (courseId: string, moduleId: string, lessonId: string, newTitle: string) => void;
   onDeleteCourse?: (id: string) => void;
   onDeleteModule?: (courseId: string, moduleId: string) => void;
   onDeleteLesson?: (courseId: string, moduleId: string, lessonId: string) => void;
@@ -38,6 +39,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   onMoveLesson, 
   onUpdateCourse, 
   onRenameModule,
+  onRenameLesson,
   onDeleteCourse,
   onDeleteModule,
   onDeleteLesson
@@ -47,6 +49,9 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   
+  // State for interactive quizzes in student view
+  const [quizState, setQuizState] = useState<Record<string, { selected: number | null, isCorrect: boolean | null }>>({});
+
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     type: 'course' | 'module' | 'lesson';
@@ -54,9 +59,10 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   } | null>(null);
 
   const [editingItem, setEditingItem] = useState<{
-    type: 'course' | 'module';
-    id: string;
-    moduleId?: string;
+    type: 'course' | 'module' | 'lesson';
+    id: string; // Course ID for course/module/lesson
+    moduleId?: string; // for module/lesson
+    lessonId?: string; // for lesson
     title: string;
     level?: string;
     audience?: string;
@@ -78,6 +84,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
         
         if (course && module && lesson) {
             setSelectedLesson({ courseId: course.id, moduleId: module.id, lesson });
+            // Reset quiz state when changing lessons
+            setQuizState({});
         }
       }
     }
@@ -104,6 +112,26 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   const handleLessonSelect = (courseId: string, moduleId: string, lesson: Lesson) => {
     setSelectedLesson({ courseId, moduleId, lesson });
     setIsEditing(false);
+    setQuizState({});
+  };
+
+  // Interactive Quiz Logic
+  const handleQuizAnswer = (blockId: string, optionIndex: number, correctIndex: number) => {
+    setQuizState(prev => ({
+        ...prev,
+        [blockId]: {
+            selected: optionIndex,
+            isCorrect: optionIndex === correctIndex
+        }
+    }));
+  };
+
+  const resetQuiz = (blockId: string) => {
+      setQuizState(prev => {
+          const newState = { ...prev };
+          delete newState[blockId];
+          return newState;
+      });
   };
 
   const requestDelete = (e: React.MouseEvent, type: 'course' | 'module' | 'lesson', id1: string, id2?: string, id3?: string) => {
@@ -331,6 +359,16 @@ export const Curriculum: React.FC<CurriculumProps> = ({
       });
   };
 
+  const initiateEditLesson = (courseId: string, moduleId: string, lesson: Lesson) => {
+    setEditingItem({
+        type: 'lesson',
+        id: courseId,
+        moduleId: moduleId,
+        lessonId: lesson.id,
+        title: lesson.title
+    });
+  };
+
   const submitEdit = (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingItem) return;
@@ -344,6 +382,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
           );
       } else if (editingItem.type === 'module' && editingItem.moduleId) {
           onRenameModule?.(editingItem.id, editingItem.moduleId, editingItem.title);
+      } else if (editingItem.type === 'lesson' && editingItem.moduleId && editingItem.lessonId) {
+          onRenameLesson?.(editingItem.id, editingItem.moduleId, editingItem.lessonId, editingItem.title);
       }
       setEditingItem(null);
   };
@@ -558,6 +598,14 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                       </div>
                                       <button 
                                         type="button"
+                                        onClick={() => initiateEditLesson(course.id, module.id, lesson)} 
+                                        className="text-slate-300 hover:text-indigo-600 p-1"
+                                        title="Rename Lesson"
+                                      >
+                                          <PenLine size={12} />
+                                      </button>
+                                      <button 
+                                        type="button"
                                         onClick={(e) => requestDelete(e, 'lesson', course.id, module.id, lesson.id)} 
                                         className="text-slate-300 hover:text-red-500 p-1"
                                       >
@@ -595,6 +643,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
         </div>
       </div>
 
+      {/* ... (Existing code for Content Area and Delete Modal remains unchanged) ... */}
       {/* Content Area - Fluid Width */}
       <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
         {selectedLesson ? (
@@ -799,24 +848,57 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                 )}
                                 {block.type === ContentType.QUIZ && (
                                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
-                                        <h4 className="font-bold mb-2 flex items-center gap-2 text-slate-700">
-                                            <CheckCircle size={16} /> {block.content}
-                                        </h4>
-                                        <div className="space-y-2">
-                                            {block.metadata?.options?.map((opt: string, i: number) => (
-                                                <div key={i} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${
-                                                    canEditContent && block.metadata?.correctIndex === i ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200 hover:bg-slate-50'
-                                                }`}>
-                                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                                        canEditContent && block.metadata?.correctIndex === i ? 'border-green-500' : 'border-slate-300'
-                                                    }`}>
-                                                        {canEditContent && block.metadata?.correctIndex === i && <div className="w-2 h-2 bg-green-500 rounded-full" />}
-                                                    </div>
-                                                    <span className={`text-sm ${canEditContent && block.metadata?.correctIndex === i ? 'font-medium text-green-800' : ''}`}>{opt}</span>
-                                                    {canEditContent && block.metadata?.correctIndex === i && <span className="text-[10px] text-green-600 font-bold uppercase ml-auto px-1">Correct</span>}
-                                                </div>
-                                            ))}
+                                        <div className="flex justify-between items-start mb-4">
+                                            <h4 className="font-bold flex items-center gap-2 text-slate-700">
+                                                <CheckCircle size={16} /> {block.content}
+                                            </h4>
+                                            {quizState[block.id] && (
+                                                <button onClick={() => resetQuiz(block.id)} className="text-slate-400 hover:text-indigo-600 p-1" title="Reset Quiz">
+                                                    <RefreshCw size={14} />
+                                                </button>
+                                            )}
                                         </div>
+                                        <div className="space-y-2">
+                                            {block.metadata?.options?.map((opt: string, i: number) => {
+                                                // Determine styles based on state
+                                                const isSelected = quizState[block.id]?.selected === i;
+                                                const hasAnswered = quizState[block.id]?.selected !== undefined;
+                                                const isCorrectAnswer = block.metadata?.correctIndex === i;
+                                                
+                                                let stateStyles = "bg-white border-slate-200 hover:bg-slate-50";
+                                                let icon = <div className={`w-4 h-4 rounded-full border border-slate-300`} />;
+
+                                                if (hasAnswered) {
+                                                    if (isSelected) {
+                                                        if (isCorrectAnswer) {
+                                                            stateStyles = "bg-green-50 border-green-300 ring-1 ring-green-300";
+                                                            icon = <div className="w-4 h-4 rounded-full border border-green-500 bg-green-500 flex items-center justify-center text-white text-[10px]">✓</div>;
+                                                        } else {
+                                                            stateStyles = "bg-red-50 border-red-300 ring-1 ring-red-300";
+                                                            icon = <div className="w-4 h-4 rounded-full border border-red-500 bg-red-500 flex items-center justify-center text-white text-[10px]">✕</div>;
+                                                        }
+                                                    } else if (isCorrectAnswer) {
+                                                        stateStyles = "bg-green-50/50 border-green-200 border-dashed"; // Show correct answer if wrong one selected
+                                                    }
+                                                }
+
+                                                return (
+                                                    <div 
+                                                        key={i} 
+                                                        onClick={() => !hasAnswered && handleQuizAnswer(block.id, i, block.metadata?.correctIndex)}
+                                                        className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${stateStyles} ${!hasAnswered ? 'cursor-pointer shadow-sm' : 'cursor-default'}`}
+                                                    >
+                                                        <div className="flex-shrink-0 mt-0.5">{icon}</div>
+                                                        <span className={`text-sm ${isSelected && isCorrectAnswer ? 'font-medium text-green-800' : isSelected ? 'font-medium text-red-800' : 'text-slate-700'}`}>{opt}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {quizState[block.id] && (
+                                            <div className={`mt-3 text-sm font-medium ${quizState[block.id].isCorrect ? 'text-green-600' : 'text-red-500'}`}>
+                                                {quizState[block.id].isCorrect ? "Correct! Well done." : "Incorrect. Try again!"}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

@@ -5,8 +5,9 @@ import { UsersList } from './components/UsersList';
 import { Curriculum } from './components/Curriculum';
 import { StudentClasses } from './components/StudentClasses';
 import { Settings } from './components/Settings';
+import { Dashboard } from './components/Dashboard';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
-import { BookOpen, Layers, FileText, Loader2, Database, Sparkles } from 'lucide-react';
+import { Loader2, Database } from 'lucide-react';
 import { dataService } from './services/dataService';
 
 // Custom Hooks
@@ -127,58 +128,12 @@ const MainApp: React.FC = () => {
     switch (currentPage) {
       case 'dashboard':
         return (
-          <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-slate-900">{t.welcomeBack}, {auth.currentUser.name}!</h1>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-indigo-100 text-indigo-600 rounded-lg"><BookOpen size={24} /></div>
-                  <div>
-                    <p className="text-sm text-slate-500">{t.activeCourses}</p>
-                    <p className="text-2xl font-bold text-slate-900">{courses.courses.length}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-green-100 text-green-600 rounded-lg"><Layers size={24} /></div>
-                  <div>
-                    <p className="text-sm text-slate-500">{t.totalModules}</p>
-                    <p className="text-2xl font-bold text-slate-900">
-                      {courses.courses.reduce((acc, c) => acc + c.modules.length, 0)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-amber-100 text-amber-600 rounded-lg"><FileText size={24} /></div>
-                  <div>
-                    <p className="text-sm text-slate-500">{t.totalLessons}</p>
-                    <p className="text-2xl font-bold text-slate-900">
-                      {courses.courses.reduce((acc, c) => acc + c.modules.reduce((mAcc, m) => mAcc + m.lessons.length, 0), 0)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {['admin', 'methodist'].includes(auth.currentUser.role) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                     <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-8 text-white shadow-lg relative overflow-hidden group cursor-pointer" onClick={() => setCurrentPage('architect')}>
-                        <div className="relative z-10">
-                            <h3 className="text-xl font-bold mb-2">{t.buildFuture}</h3>
-                            <p className="text-indigo-100 mb-4 text-sm max-w-xs">{t.aiConsultantDesc}</p>
-                            <button className="bg-white text-indigo-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-50 transition-colors">
-                                {t.openAiConsultant}
-                            </button>
-                        </div>
-                        <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10 group-hover:scale-110 transition-transform">
-                             <Sparkles size={150} />
-                        </div>
-                     </div>
-                </div>
-            )}
-          </div>
+          <Dashboard 
+            user={auth.currentUser}
+            courses={courses.courses}
+            logs={activity.activityLog}
+            onNavigate={setCurrentPage}
+          />
         );
       case 'users':
         return (
@@ -206,6 +161,7 @@ const MainApp: React.FC = () => {
             onMoveLesson={courses.moveLesson}
             onUpdateCourse={courses.updateCourse}
             onRenameModule={courses.renameModule}
+            onRenameLesson={courses.renameLesson}
             onDeleteCourse={courses.deleteCourse}
             onDeleteModule={courses.deleteModule}
             onDeleteLesson={courses.deleteLesson}

@@ -32,6 +32,17 @@ export const useCourses = (
     }));
   };
 
+  const renameLesson = (courseId: string, moduleId: string, lessonId: string, newTitle: string) => {
+    logAction(currentUser, 'rename', 'lesson', newTitle, undefined, { courseId, moduleId, lessonId });
+    setCourses(prev => prev.map(c => c.id !== courseId ? c : {
+        ...c,
+        modules: c.modules.map(m => m.id !== moduleId ? m : {
+            ...m,
+            lessons: m.lessons.map(l => l.id !== lessonId ? l : { ...l, title: newTitle })
+        })
+    }));
+  };
+
   const addLesson = (courseId: string, moduleId: string) => {
     const newLesson: Lesson = {
       id: Date.now().toString(),
@@ -174,6 +185,7 @@ export const useCourses = (
     setCourses,
     addLesson,
     updateLesson,
+    renameLesson,
     deleteLesson,
     moveLesson,
     addModule,
