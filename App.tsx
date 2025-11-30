@@ -155,12 +155,15 @@ const MainApp: React.FC = () => {
     return <Login onLogin={handleLoginWrapper} users={users.users} />;
   }
 
+  // We safely assume currentUser is defined here due to the guard clause above.
+  const currentUser = auth.currentUser;
+
   const renderContent = () => {
     switch (currentPage) {
       case 'dashboard':
         return (
           <Dashboard 
-            user={auth.currentUser}
+            user={currentUser}
             courses={courses.courses}
             logs={activity.activityLog}
             onNavigate={setCurrentPage}
@@ -192,8 +195,8 @@ const MainApp: React.FC = () => {
         return (
           <Curriculum 
             courses={courses.courses} 
-            userRole={auth.currentUser.role}
-            user={auth.currentUser}
+            userRole={currentUser.role}
+            user={currentUser}
             userGroups={currentUserGroups}
             levels={settings.settings.levels}
             audiences={settings.settings.targetAudiences}
@@ -255,7 +258,7 @@ const MainApp: React.FC = () => {
 
   return (
     <Layout 
-      user={auth.currentUser} 
+      user={currentUser} 
       onLogout={handleLogoutWrapper} 
       currentPage={currentPage}
       onNavigate={(page) => {
