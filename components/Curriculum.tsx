@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Course, Lesson, ContentBlock, ContentType, UserRole } from '../types';
-import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Image as ImageIcon, CheckCircle, Edit3, Plus, ArrowUp, ArrowDown, Star, BarChart3, PenLine, FileUp, X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, FolderClosed, BookOpen, Loader2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import mammoth from 'mammoth';
 
 interface CurriculumProps {
   courses: Course[];
   userRole: UserRole;
+  levels: string[];
+  audiences: string[];
   initialSelection?: { courseId?: string; moduleId?: string; lessonId?: string } | null;
   onUpdateLesson?: (courseId: string, moduleId: string, lesson: Lesson, description?: string) => void;
   onAddLesson?: (courseId: string, moduleId: string) => void;
@@ -15,7 +16,7 @@ interface CurriculumProps {
   onMoveCourse?: (index: number, direction: 'up' | 'down') => void;
   onMoveModule?: (courseId: string, index: number, direction: 'up' | 'down') => void;
   onMoveLesson?: (courseId: string, moduleId: string, index: number, direction: 'up' | 'down') => void;
-  onUpdateCourse?: (id: string, title: string, level: Course['level'], audience: Course['targetAudience']) => void;
+  onUpdateCourse?: (id: string, title: string, level: string, audience: string) => void;
   onRenameModule?: (courseId: string, moduleId: string, newTitle: string) => void;
   onDeleteCourse?: (id: string) => void;
   onDeleteModule?: (courseId: string, moduleId: string) => void;
@@ -25,6 +26,8 @@ interface CurriculumProps {
 export const Curriculum: React.FC<CurriculumProps> = ({ 
   courses, 
   userRole, 
+  levels,
+  audiences,
   initialSelection,
   onUpdateLesson, 
   onAddLesson, 
@@ -42,6 +45,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const [selectedLesson, setSelectedLesson] = useState<{ courseId: string, moduleId: string, lesson: Lesson } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
   
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -54,8 +58,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     id: string;
     moduleId?: string;
     title: string;
-    level?: Course['level'];
-    audience?: Course['targetAudience'];
+    level?: string;
+    audience?: string;
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -288,16 +292,21 @@ export const Curriculum: React.FC<CurriculumProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsConverting(true);
     const reader = new FileReader();
     reader.onload = async (event) => {
         const arrayBuffer = event.target?.result as ArrayBuffer;
         try {
+            // Dynamic import to reduce bundle size
+            const mammoth = (await import('mammoth')).default;
             const result = await mammoth.convertToHtml({ arrayBuffer });
             handleAddBlock(ContentType.TEXT, result.value);
             if (fileInputRef.current) fileInputRef.current.value = '';
         } catch (err) {
             console.error("Failed to convert .docx", err);
             alert("Error converting file. Please ensure it is a valid .docx file.");
+        } finally {
+            setIsConverting(false);
         }
     };
     reader.readAsArrayBuffer(file);
@@ -330,8 +339,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
           onUpdateCourse?.(
               editingItem.id, 
               editingItem.title, 
-              editingItem.level || 'A1', 
-              editingItem.audience || 'adults'
+              editingItem.level || levels[0], 
+              editingItem.audience || audiences[0]
           );
       } else if (editingItem.type === 'module' && editingItem.moduleId) {
           onRenameModule?.(editingItem.id, editingItem.moduleId, editingItem.title);
@@ -437,8 +446,9 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-6 relative">
-      <div className="w-1/3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+    <div className="flex h-[calc(100vh-3rem)] gap-4 relative">
+      {/* Sidebar List - Fixed Width */}
+      <div className="w-[360px] flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h2 className="font-bold text-lg text-slate-800">{t.courses}</h2>
           <div className="flex gap-1">
@@ -455,8 +465,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
               <div key={course.id} className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
                 <div className="bg-slate-50 p-3 font-semibold text-slate-700">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-base">{course.title}</span>
-                    <div className="flex items-center gap-1">
+                    <span className="text-base truncate pr-2" title={course.title}>{course.title}</span>
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       {canEditContent && (
                         <>
                           <button 
@@ -476,14 +486,12 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                           </button>
                         </>
                       )}
-                      <span className={`text-xs border px-1.5 py-0.5 rounded ${
-                        course.level.startsWith('A') ? 'bg-green-50 text-green-700 border-green-200' :
-                        course.level.startsWith('B') ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                        'bg-purple-50 text-purple-700 border-purple-200'
-                      }`}>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 text-xs font-normal mb-1">
+                      <span className={`text-xs border px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border-slate-200`}>
                         {course.level}
                       </span>
-                    </div>
                   </div>
                   <div className="flex gap-2 text-xs font-normal">
                     <span className="flex items-center gap-1 bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100">
@@ -502,13 +510,13 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                         <div className="flex items-center justify-between group">
                           <button 
                             onClick={() => toggleModule(module.id)}
-                            className="flex-1 flex items-center gap-2 p-2 hover:bg-slate-50 rounded text-sm font-medium text-slate-600 text-left"
+                            className="flex-1 flex items-center gap-2 p-2 hover:bg-slate-50 rounded text-sm font-medium text-slate-600 text-left min-w-0"
                           >
                             {expandedModules[module.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             <span className="truncate">{module.title}</span>
                           </button>
                           {canEditContent && (
-                            <div className="hidden group-hover:flex items-center gap-1 mr-2">
+                            <div className="hidden group-hover:flex items-center gap-1 mr-2 flex-shrink-0">
                               <button onClick={() => initiateEditModule(course.id, module)} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600"><PenLine size={12} /></button>
                               <button onClick={() => onMoveModule?.(course.id, mIdx, 'up')} className="p-1 hover:bg-slate-100 rounded text-slate-400"><ArrowUp size={12} /></button>
                               <button onClick={() => onMoveModule?.(course.id, mIdx, 'down')} className="p-1 hover:bg-slate-100 rounded text-slate-400"><ArrowDown size={12} /></button>
@@ -533,17 +541,17 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                               <div key={lesson.id} className="group flex items-center gap-1 pr-1">
                                 <button
                                   onClick={() => handleLessonSelect(course.id, module.id, lesson)}
-                                  className={`flex-1 text-left text-sm p-2 rounded flex items-center gap-2 ${
+                                  className={`flex-1 text-left text-sm p-2 rounded flex items-center gap-2 min-w-0 ${
                                     selectedLesson?.lesson.id === lesson.id 
                                     ? 'bg-indigo-50 text-indigo-700 font-medium' 
                                     : 'text-slate-500 hover:text-slate-900'
                                   }`}
                                 >
-                                  <div className={`w-2 h-2 rounded-full ${lesson.status === 'published' ? 'bg-green-400' : 'bg-amber-400'}`} />
+                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${lesson.status === 'published' ? 'bg-green-400' : 'bg-amber-400'}`} />
                                   <span className="truncate">{lesson.title}</span>
                                 </button>
                                 {canEditContent && (
-                                  <div className="hidden group-hover:flex items-center gap-1">
+                                  <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
                                       <div className="flex flex-col">
                                           <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'up')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowUp size={10} /></button>
                                           <button onClick={() => onMoveLesson?.(course.id, module.id, lIdx, 'down')} className="hover:text-indigo-600 text-slate-300 p-0.5"><ArrowDown size={10} /></button>
@@ -587,22 +595,23 @@ export const Curriculum: React.FC<CurriculumProps> = ({
         </div>
       </div>
 
-      <div className="w-2/3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+      {/* Content Area - Fluid Width */}
+      <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
         {selectedLesson ? (
           <>
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 overflow-hidden">
                    {canSetReadiness && (
-                       <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-slate-300 group">
+                       <div className="flex-shrink-0 flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-slate-300 group">
                            <ReadinessControl 
                               value={selectedLesson.lesson.readiness || 0}
                               onChange={(val) => updateReadiness(val)}
                            />
                        </div>
                    )}
-                   <h2 className="font-bold text-lg text-slate-800">{selectedLesson.lesson.title}</h2>
+                   <h2 className="font-bold text-lg text-slate-800 truncate">{selectedLesson.lesson.title}</h2>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     {canRate && (
                         <div className="flex gap-0.5 mr-4">
                             {[1, 2, 3, 4, 5].map(star => (
@@ -831,8 +840,9 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                         <Edit3 size={16} /> {t.addNote}
                     </button>
                     <div className="w-px h-8 bg-slate-300 mx-1" />
-                    <button onClick={handleImportDoc} className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-100 transition-colors whitespace-nowrap">
-                        <FileUp size={16} /> {t.importWord}
+                    <button onClick={handleImportDoc} disabled={isConverting} className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-100 transition-colors whitespace-nowrap disabled:opacity-50">
+                        {isConverting ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />} 
+                        {isConverting ? "Converting..." : t.importWord}
                     </button>
                     <input 
                         type="file" 
@@ -912,25 +922,24 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                           <label className="block text-sm font-medium text-slate-700 mb-1">Level (CEFR)</label>
                           <select 
                              value={editingItem.level}
-                             onChange={e => setEditingItem({...editingItem, level: e.target.value as Course['level']})}
+                             onChange={e => setEditingItem({...editingItem, level: e.target.value})}
                              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white"
                           >
-                            <option value="A1">A1 (Beginner)</option>
-                            <option value="A2">A2 (Elementary)</option>
-                            <option value="B1">B1 (Intermediate)</option>
-                            <option value="B2">B2 (Upper-Intermediate)</option>
-                            <option value="C1">C1 (Advanced)</option>
+                             {levels.map(l => (
+                                 <option key={l} value={l}>{l}</option>
+                             ))}
                           </select>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Target Audience</label>
                           <select 
                              value={editingItem.audience}
-                             onChange={e => setEditingItem({...editingItem, audience: e.target.value as Course['targetAudience']})}
+                             onChange={e => setEditingItem({...editingItem, audience: e.target.value})}
                              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 bg-white"
                           >
-                            <option value="kids">Kids</option>
-                            <option value="adults">Adults</option>
+                            {audiences.map(a => (
+                                <option key={a} value={a}>{a}</option>
+                            ))}
                           </select>
                         </div>
                       </>

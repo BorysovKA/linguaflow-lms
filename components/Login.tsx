@@ -40,9 +40,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md relative">
         <div className="absolute top-4 right-4 flex gap-2">
-            <LangButton lang="en" label="EN" />
-            <LangButton lang="ru" label="RU" />
             <LangButton lang="uk" label="UA" />
+            <LangButton lang="en" label="EN" />
         </div>
 
         <div className="text-center mb-8 mt-4">

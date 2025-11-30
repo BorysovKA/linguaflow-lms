@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserRole, Language } from '../types';
-import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff } from 'lucide-react';
+import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff, Settings } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface LayoutProps {
@@ -43,20 +43,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10">
         <div className="p-6 border-b border-slate-100 flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">L</div>
             <span className="text-xl font-bold text-slate-800">LinguaFlow</span>
           </div>
           <div className="flex gap-2 justify-center">
-            <LangButton lang="en" label="EN" />
-            <LangButton lang="ru" label="RU" />
             <LangButton lang="uk" label="UA" />
+            <LangButton lang="en" label="EN" />
           </div>
         </div>
 
-        <nav className="flex-1 p-4 overflow-y-auto">
+        <nav className="flex-1 p-4 overflow-y-auto custom-scrollbar">
           <div className="mb-6">
             <p className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{t.menu}</p>
             <NavItem id="dashboard" label={t.dashboard} icon={LayoutDashboard} roles={['admin', 'methodist', 'teacher', 'student']} />
@@ -69,6 +68,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
           <div>
              <p className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{t.planning}</p>
              <NavItem id="architect" label={t.aiArchitect} icon={Sparkles} roles={['admin', 'methodist']} />
+             <NavItem id="settings" label={t.settings} icon={Settings} roles={['admin']} />
           </div>
         </nav>
 
@@ -97,12 +97,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
             <LogOut size={16} />
             {t.signOut}
           </button>
-          <div className="text-[10px] text-slate-300 text-center mt-2">v1.1 Methodist Update</div>
+          <div className="text-[10px] text-slate-300 text-center mt-2">v1.4 Layout Update</div>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto p-8">
+      <main className="flex-1 overflow-auto bg-slate-50 relative">
+        <div className="w-full h-full p-4 md:p-6">
           {children}
         </div>
       </main>

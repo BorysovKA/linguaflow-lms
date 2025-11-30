@@ -1,6 +1,7 @@
+
 export type UserRole = 'admin' | 'methodist' | 'teacher' | 'student';
 
-export type Language = 'en' | 'ru' | 'uk';
+export type Language = 'en' | 'uk';
 
 export interface User {
   id: string;
@@ -45,8 +46,8 @@ export interface CourseModule {
 export interface Course {
   id: string;
   title: string;
-  level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
-  targetAudience: 'kids' | 'adults';
+  level: string;           // Changed from union to string to allow custom levels
+  targetAudience: string;  // Changed from union to string to allow custom audiences
   modules: CourseModule[];
 }
 
@@ -58,7 +59,7 @@ export interface ChatMessage {
 }
 
 export type ActionType = 'create' | 'update' | 'delete' | 'move' | 'rename';
-export type TargetType = 'course' | 'module' | 'lesson';
+export type TargetType = 'course' | 'module' | 'lesson' | 'settings';
 
 export interface ActivityLogEntry {
   id: string;
@@ -74,4 +75,9 @@ export interface ActivityLogEntry {
     moduleId?: string;
     lessonId?: string;
   };
+}
+
+export interface AppSettings {
+  levels: string[];
+  targetAudiences: string[];
 }

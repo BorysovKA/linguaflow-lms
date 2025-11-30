@@ -4,7 +4,8 @@ import { Login } from './components/Login';
 import { UsersList } from './components/UsersList';
 import { Curriculum } from './components/Curriculum';
 import { StudentClasses } from './components/StudentClasses';
-import { User, Course, Lesson, CourseModule, ActivityLogEntry, ActionType, TargetType } from './types';
+import { Settings } from './components/Settings';
+import { User, Course, Lesson, CourseModule, ActivityLogEntry, ActionType, TargetType, AppSettings } from './types';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { BookOpen, Layers, FileText, Loader2, Database, Sparkles } from 'lucide-react';
 import { dataService } from './services/dataService';
@@ -23,6 +24,7 @@ const MainApp: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings>({ levels: [], targetAudiences: [] });
 
   useEffect(() => {
     const initApp = async () => {
@@ -31,6 +33,7 @@ const MainApp: React.FC = () => {
         setUsers(data.users);
         setCourses(data.courses);
         setActivityLog(data.logs);
+        setAppSettings(data.settings);
         setIsDbConnected(data.isConnected);
 
         const savedUser = dataService.getCurrentUser();
@@ -63,6 +66,10 @@ const MainApp: React.FC = () => {
   useEffect(() => { 
     if (!isLoading) dataService.saveLogs(activityLog); 
   }, [activityLog, isLoading]);
+
+  useEffect(() => {
+    if (!isLoading) dataService.saveSettings(appSettings);
+  }, [appSettings, isLoading]);
 
   useEffect(() => {
       if (currentUser && currentPage !== 'login') {
@@ -174,8 +181,8 @@ const MainApp: React.FC = () => {
       const newCourse: Course = {
           id: Date.now().toString(),
           title: t.newCourseTitle,
-          level: 'A1',
-          targetAudience: 'adults',
+          level: appSettings.levels[0] || 'A1',
+          targetAudience: appSettings.targetAudiences[0] || 'Adults',
           modules: []
       };
       if (currentUser) logAction(currentUser, 'create', 'course', newCourse.title, undefined, { courseId: newCourse.id });
@@ -195,7 +202,7 @@ const MainApp: React.FC = () => {
       }));
   };
 
-  const handleUpdateCourse = (id: string, title: string, level: Course['level'], audience: Course['targetAudience']) => {
+  const handleUpdateCourse = (id: string, title: string, level: string, audience: string) => {
     const course = courses.find(c => c.id === id);
     if (currentUser && course) logAction(currentUser, 'update', 'course', title, `Level: ${level}, Aud: ${audience}`, { courseId: id });
     setCourses(prev => prev.map(c => c.id !== id ? c : { ...c, title, level, targetAudience: audience }));
@@ -298,6 +305,11 @@ const MainApp: React.FC = () => {
       }
   };
 
+  const handleUpdateSettings = (newSettings: AppSettings) => {
+    setAppSettings(newSettings);
+    if (currentUser) logAction(currentUser, 'update', 'settings', 'App Settings');
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-400 gap-4">
@@ -385,6 +397,8 @@ const MainApp: React.FC = () => {
           <Curriculum 
             courses={courses} 
             userRole={currentUser.role}
+            levels={appSettings.levels}
+            audiences={appSettings.targetAudiences}
             initialSelection={curriculumNavigation}
             onUpdateLesson={handleUpdateLesson}
             onAddLesson={handleAddLesson}
@@ -424,6 +438,13 @@ const MainApp: React.FC = () => {
             <StudentClasses 
                 courses={courses}
                 onNavigateToCourse={handleNavigateToCourse}
+            />
+        );
+      case 'settings':
+        return (
+            <Settings 
+                settings={appSettings} 
+                onUpdateSettings={handleUpdateSettings}
             />
         );
       default:

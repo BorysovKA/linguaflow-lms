@@ -1,8 +1,13 @@
-import { User, Course, ActivityLogEntry } from '../types';
+import { User, Course, ActivityLogEntry, AppSettings } from '../types';
 import { supabase } from './supabaseClient.ts';
 
+const DEFAULT_SETTINGS: AppSettings = {
+  levels: ['A1 (Beginner)', 'A2 (Elementary)', 'B1 (Intermediate)', 'B2 (Upper-Intermediate)', 'C1 (Advanced)'],
+  targetAudiences: ['Kids', 'Teens', 'Adults', 'Business', 'Exams']
+};
+
 export const dataService = {
-  async init(): Promise<{ users: User[], courses: Course[], logs: ActivityLogEntry[], isConnected: boolean }> {
+  async init(): Promise<{ users: User[], courses: Course[], logs: ActivityLogEntry[], settings: AppSettings, isConnected: boolean }> {
     try {
       console.log("Attempting to connect to Supabase...");
       
@@ -33,18 +38,24 @@ export const dataService = {
         .order('timestamp', { ascending: false })
         .limit(100);
 
+      // Fetch Settings (Simulated via LocalStorage for now to avoid migration requirement, 
+      // but in production this should be a DB table 'app_settings')
+      const savedSettings = localStorage.getItem('lms_app_settings');
+      const settings = savedSettings ? JSON.parse(savedSettings) : DEFAULT_SETTINGS;
+
       console.log("Successfully loaded data from Supabase.");
       return { 
         users: usersData || [], 
         courses: coursesData || [], 
         logs: logsData || [],
+        settings,
         isConnected: true
       };
 
     } catch (e) {
       console.error("Critical: Failed to load data from Supabase.", e);
-      // Return empty state on error, forcing the user to fix the DB or connection
-      return { users: [], courses: [], logs: [], isConnected: false };
+      // Return empty state on error
+      return { users: [], courses: [], logs: [], settings: DEFAULT_SETTINGS, isConnected: false };
     }
   },
 
@@ -86,6 +97,10 @@ export const dataService = {
     
     const { error } = await supabase.from('activity_logs').upsert(recentLogs);
     if (error) console.error("Error saving logs to DB:", error.message);
+  },
+
+  saveSettings(settings: AppSettings): void {
+    localStorage.setItem('lms_app_settings', JSON.stringify(settings));
   },
 
   getCurrentUser(): User | null {
