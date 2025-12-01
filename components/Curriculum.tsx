@@ -490,10 +490,15 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                    {canModify(activeCourseId!) && (
                                        <button 
                                           onClick={() => setShowAiPanel(!showAiPanel)}
-                                          className={`p-2 rounded-lg transition-colors ${showAiPanel ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-indigo-50 text-slate-500'}`}
-                                          title="AI Assistant"
+                                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm ${
+                                              showAiPanel 
+                                              ? 'bg-indigo-600 text-white shadow-indigo-200' 
+                                              : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'
+                                          }`}
+                                          title={t.openAiConsultant}
                                        >
-                                           <Sparkles size={18} />
+                                           <Sparkles size={16} />
+                                           {t.aiHelperTitle || "AI Assistant"}
                                        </button>
                                    )}
                                </h2>
@@ -565,7 +570,7 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                       <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
                                           <div className="flex items-center gap-2 text-indigo-700 font-bold">
                                               <Sparkles size={18} />
-                                              AI Assistant
+                                              {t.aiHelperTitle || "AI Copilot"}
                                           </div>
                                           <button onClick={() => setShowAiPanel(false)}><X size={16} className="text-slate-400 hover:text-slate-600" /></button>
                                       </div>

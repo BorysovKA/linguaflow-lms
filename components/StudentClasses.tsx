@@ -29,11 +29,11 @@ export const StudentClasses: React.FC<StudentClassesProps> = ({ courses, onNavig
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
             <h2 className="text-3xl font-bold text-slate-900 tracking-tight">{t.myLearning}</h2>
-            <p className="text-slate-500 font-medium mt-1">Keep up the momentum! You have {courses.length} active courses.</p>
+            <p className="text-slate-500 font-medium mt-1">{t.keepMomentum} {courses.length} {t.activeCoursesCount}</p>
         </div>
         <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 text-sm font-bold text-slate-600">
             <Trophy size={16} className="text-amber-500" />
-            <span>Total Score: 1,250 XP</span>
+            <span>{t.totalScore} 1,250 XP</span>
         </div>
       </div>
 
@@ -77,16 +77,16 @@ export const StudentClasses: React.FC<StudentClassesProps> = ({ courses, onNavig
                         
                         <div className="flex gap-2 mb-6">
                             <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-lg text-[10px] uppercase font-bold text-slate-500">
-                                {course.modules.length} Modules
+                                {course.modules.length} {t.totalModules}
                             </span>
                             <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-lg text-[10px] uppercase font-bold text-slate-500">
-                                {totalLessons} Lessons
+                                {totalLessons} {t.totalLessons}
                             </span>
                         </div>
 
                         <div className="mt-auto">
                             <div className="flex justify-between items-end mb-2">
-                                <span className="text-xs font-bold text-slate-400">Progress</span>
+                                <span className="text-xs font-bold text-slate-400">{t.courseProgress}</span>
                                 <span className="text-sm font-bold text-slate-700">{progress}%</span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -115,8 +115,8 @@ export const StudentClasses: React.FC<StudentClassesProps> = ({ courses, onNavig
                 <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
                     <Trophy size={40} className="text-slate-300" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800">No courses yet</h3>
-                <p className="text-slate-400">Your assigned courses will appear here.</p>
+                <h3 className="text-lg font-bold text-slate-800">{t.noCoursesYet}</h3>
+                <p className="text-slate-400">{t.assignedCoursesHelp}</p>
             </div>
         )}
       </div>

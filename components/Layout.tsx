@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { User, UserRole, Language } from '../types';
-import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff, Settings, ShieldCheck, Search, Bell, TrendingUp, FlaskConical } from 'lucide-react';
+import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff, Settings, ShieldCheck, Search, Bell, TrendingUp, FlaskConical, CheckCircle } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface LayoutProps {
@@ -15,6 +15,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentPage, onNavigate, isDbConnected }) => {
   const { t, language, setLanguage } = useLanguage();
+  const [showNotifications, setShowNotifications] = useState(false);
   
   const NavItem = ({ id, label, icon: Icon, roles }: { id: string, label: string, icon: any, roles: UserRole[] }) => {
     if (!roles.includes(user.role)) return null;
@@ -150,7 +151,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
 
         <div className="h-full overflow-auto custom-scrollbar p-4 md:p-6 lg:p-8">
            {/* Header Area for Content */}
-           <header className="mb-8 flex justify-between items-center">
+           <header className="mb-8 flex justify-between items-center z-10 relative">
                <div>
                   <h2 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                     {currentPage === 'dashboard' ? t.dashboard : 
@@ -171,10 +172,43 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
                       <Search size={18} className="text-slate-400" />
                       <input type="text" placeholder={t.searchPlaceholder} className="bg-transparent border-none focus:outline-none text-sm w-40 placeholder:text-slate-400 text-slate-700" />
                   </div>
-                  <button className="w-10 h-10 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-teal hover:shadow-md transition-all relative">
-                      <Bell size={20} />
-                      <span className="absolute top-2 right-2.5 w-2 h-2 bg-brand-red rounded-full border border-white"></span>
-                  </button>
+                  <div className="relative">
+                      <button 
+                        onClick={() => setShowNotifications(!showNotifications)}
+                        className={`w-10 h-10 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-center transition-all relative ${showNotifications ? 'text-brand-teal ring-2 ring-teal-100' : 'text-slate-500 hover:text-brand-teal hover:shadow-md'}`}
+                      >
+                          <Bell size={20} />
+                          <span className="absolute top-2 right-2.5 w-2 h-2 bg-brand-red rounded-full border border-white"></span>
+                      </button>
+                      
+                      {/* Notifications Dropdown */}
+                      {showNotifications && (
+                          <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-slide-in-right z-50">
+                              <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                                  <h4 className="font-bold text-slate-800">{t.notifications}</h4>
+                                  <button className="text-[10px] font-bold text-brand-teal uppercase hover:underline">{t.markAllRead}</button>
+                              </div>
+                              <div className="max-h-60 overflow-y-auto">
+                                  <div className="p-4 hover:bg-slate-50 transition-colors border-b border-slate-50 relative group">
+                                      <div className="flex gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
+                                              <TrendingUp size={14} />
+                                          </div>
+                                          <div>
+                                              <p className="text-sm font-semibold text-slate-800">Welcome to Level Up!</p>
+                                              <p className="text-xs text-slate-500 mt-1">Get started by creating your first course or managing users.</p>
+                                              <p className="text-[10px] text-slate-400 mt-2 font-medium">Just now</p>
+                                          </div>
+                                          <div className="w-2 h-2 bg-brand-red rounded-full mt-1.5"></div>
+                                      </div>
+                                  </div>
+                                  <div className="p-8 text-center text-slate-400 text-sm italic">
+                                      {t.noNewNotifications}
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+                  </div>
                </div>
            </header>
 

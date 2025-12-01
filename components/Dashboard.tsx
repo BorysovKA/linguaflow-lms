@@ -164,7 +164,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, courses, logs, onNav
       <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100/50">
           <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-lg text-slate-800">{t.recentUpdates}</h3>
-              <button className="text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">{t.viewAll}</button>
+              <button 
+                  onClick={() => onNavigate('activity')}
+                  className="text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
+              >
+                  {t.viewAll}
+              </button>
           </div>
           <div className="space-y-4">
               {logs.slice(0, 3).map((log) => (

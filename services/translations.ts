@@ -142,6 +142,18 @@ export const translations = {
     moveToArchive: "Move to Archive",
     archived: "Archived",
 
+    // New additions for missing translations
+    keepMomentum: "Keep up the momentum! You have",
+    activeCoursesCount: "active courses.",
+    totalScore: "Total Score:",
+    noCoursesYet: "No courses yet",
+    assignedCoursesHelp: "Your assigned courses will appear here.",
+    notifications: "Notifications",
+    noNewNotifications: "No new notifications",
+    markAllRead: "Mark all as read",
+    openAiAssistant: "Open AI Assistant",
+    aiHelperTitle: "AI Copilot",
+
     // Test Builder Translations
     tbSelectContent: "1. Select Content Sources",
     tbSelectContentDesc: "Choose lessons to extract vocabulary and grammar from.",
@@ -350,6 +362,18 @@ export const translations = {
     restore: "Відновити",
     moveToArchive: "В архів",
     archived: "В архіві",
+
+    // New additions for missing translations
+    keepMomentum: "Так тримати! У вас",
+    activeCoursesCount: "активних курсів.",
+    totalScore: "Загальний рахунок:",
+    noCoursesYet: "Курсів ще немає",
+    assignedCoursesHelp: "Призначені вам курси з'являться тут.",
+    notifications: "Сповіщення",
+    noNewNotifications: "Нових сповіщень немає",
+    markAllRead: "Позначити всі як прочитані",
+    openAiAssistant: "Відкрити AI Асистента",
+    aiHelperTitle: "AI Copilot",
 
     // Test Builder Translations
     tbSelectContent: "1. Джерело контенту",
