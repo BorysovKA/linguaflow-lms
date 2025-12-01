@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { User, UserRole, Language } from '../types';
-import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff, Settings, ShieldCheck, Search, Bell, TrendingUp } from 'lucide-react';
+import { LogOut, BookOpen, Users, LayoutDashboard, Sparkles, GraduationCap, Activity, Database, WifiOff, Settings, ShieldCheck, Search, Bell, TrendingUp, FlaskConical } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface LayoutProps {
@@ -91,10 +91,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
             <NavItem id="activity" label={t.activityLog} icon={Activity} roles={['admin', 'methodist']} />
           </div>
 
-          {(user.role === 'admin' || user.role === 'methodist') && (
+          {(user.role === 'admin' || user.role === 'methodist' || user.role === 'teacher') && (
               <div>
                  <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">{t.planning}</p>
                  <NavItem id="architect" label={t.aiArchitect} icon={Sparkles} roles={['admin', 'methodist']} />
+                 <NavItem id="test-builder" label={t.testBuilder} icon={FlaskConical} roles={['admin', 'methodist', 'teacher']} />
                  <NavItem id="users" label={t.users} icon={Users} roles={['admin', 'methodist']} />
                  <NavItem id="access" label={t.accessControl} icon={ShieldCheck} roles={['admin', 'methodist']} />
                  <NavItem id="settings" label={t.settings} icon={Settings} roles={['admin']} />
@@ -156,6 +157,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
                      currentPage === 'curriculum' ? t.curriculum :
                      currentPage === 'users' ? t.users :
                      currentPage === 'architect' ? t.aiArchitect :
+                     currentPage === 'test-builder' ? t.testBuilder :
                      currentPage === 'my-classes' ? t.myClasses :
                      t.appTitle}
                   </h2>

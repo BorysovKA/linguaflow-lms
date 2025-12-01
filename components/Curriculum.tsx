@@ -7,10 +7,11 @@ import {
   X, Trash2, AlertTriangle, Bold, Italic, List, Upload, FolderOpen, 
   FolderClosed, BookOpen, Loader2, RefreshCw, Eye, EyeOff, RotateCcw, 
   Sparkles, Lightbulb, CheckSquare, Languages, Search, ChevronLeft, MoreVertical, LayoutGrid, Copy, Move, PieChart,
-  Globe, Laptop, Palette, Dna, Calculator, Music, Briefcase, MessageCircle, GraduationCap, Rocket
+  Globe, Laptop, Palette, Dna, Calculator, Music, Briefcase, MessageCircle, GraduationCap, Rocket, Bot
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { analyzeLessonContent } from '../services/geminiService';
+import { AIArchitect } from './AIArchitect';
 
 // DnD Kit Imports
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
@@ -441,9 +442,9 @@ export const Curriculum: React.FC<CurriculumProps> = ({
   const renderLessonsView = () => {
       if (!activeCourse || !activeModule) return null;
       return (
-          <div className="flex h-full gap-4 overflow-hidden">
+          <div className="flex h-full gap-4 overflow-hidden relative">
               {/* Lesson List */}
-              <div className="w-80 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
+              <div className="w-80 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden flex-shrink-0">
                   <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700 flex justify-between items-center">
                       <span>{t.lessonPlan}</span>
                       {canModify(activeCourseId!) && (
@@ -480,11 +481,22 @@ export const Curriculum: React.FC<CurriculumProps> = ({
               </div>
 
               {/* Editor */}
-              <div className="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+              <div className="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col relative">
                   {selectedLesson ? (
                       <>
                           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                               <h2 className="font-bold text-lg text-slate-800">{selectedLesson.lesson.title}</h2>
+                               <h2 className="font-bold text-lg text-slate-800 flex items-center gap-3">
+                                   {selectedLesson.lesson.title}
+                                   {canModify(activeCourseId!) && (
+                                       <button 
+                                          onClick={() => setShowAiPanel(!showAiPanel)}
+                                          className={`p-2 rounded-lg transition-colors ${showAiPanel ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-indigo-50 text-slate-500'}`}
+                                          title="AI Assistant"
+                                       >
+                                           <Sparkles size={18} />
+                                       </button>
+                                   )}
+                               </h2>
                                <div className="flex gap-2">
                                   {canModify(activeCourseId!) && (
                                       !isEditingContent ? (
@@ -499,52 +511,71 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                   )}
                                </div>
                           </div>
-                          <div className="flex-1 overflow-y-auto p-8 space-y-6">
-                              {/* Reusing block rendering logic from original, but simplified for XML brevity */}
-                              {selectedLesson.lesson.blocks.map((block, idx) => (
-                                  <div key={block.id} className="relative group">
-                                      {isEditingContent && (
-                                          <div className="absolute -left-8 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-50 group-hover:opacity-100">
-                                              <button onClick={() => handleMoveBlock(idx, 'up')} className="hover:text-indigo-600"><ArrowUp size={14} /></button>
-                                              <button onClick={() => handleDeleteBlock(block.id)} className="hover:text-red-600"><Trash2 size={14} /></button>
-                                              <button onClick={() => handleMoveBlock(idx, 'down')} className="hover:text-indigo-600"><ArrowDown size={14} /></button>
-                                          </div>
-                                      )}
-                                      {isEditingContent ? (
-                                          <div className="border border-indigo-100 rounded-lg p-2 bg-indigo-50/30">
-                                              {block.type === ContentType.TEXT ? (
-                                                  <>
-                                                      <div className="flex gap-1 mb-2 border-b border-indigo-100 pb-1">
-                                                          <button onClick={() => insertFormat(block.id, 'b')} className="p-1 hover:bg-white rounded"><Bold size={14}/></button>
-                                                          <button onClick={() => insertFormat(block.id, 'i')} className="p-1 hover:bg-white rounded"><Italic size={14}/></button>
-                                                          <button onClick={() => insertFormat(block.id, 'ul')} className="p-1 hover:bg-white rounded"><List size={14}/></button>
-                                                      </div>
-                                                      <textarea id={`textarea-${block.id}`} value={block.content} onChange={e => handleUpdateBlock(block.id, e.target.value)} className="w-full h-24 p-2 text-sm bg-white border-none focus:ring-0" />
-                                                  </>
-                                              ) : (
-                                                  <input type="text" value={block.content} onChange={e => handleUpdateBlock(block.id, e.target.value)} className="w-full p-2 border rounded text-sm" />
-                                              )}
-                                          </div>
-                                      ) : (
-                                          <div className="prose max-w-none text-slate-900">
-                                              {block.type === ContentType.TEXT && <div dangerouslySetInnerHTML={{ __html: block.content }} />}
-                                              {block.type === ContentType.IMAGE && <img src={block.content} className="rounded-lg shadow-sm max-h-80" />}
-                                              {block.type === ContentType.QUIZ && (
-                                                  <div className="bg-slate-50 p-4 rounded-lg border">
-                                                      <div className="font-bold mb-2">{block.content}</div>
-                                                      {block.metadata?.options?.map((opt:string, i:number) => (
-                                                          <div key={i} onClick={() => !quizState[block.id] && handleQuizAnswer(block.id, i, block.metadata.correctIndex)} className={`p-2 border rounded mt-1 cursor-pointer ${quizState[block.id]?.selected === i ? (quizState[block.id]?.isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300') : 'hover:bg-white'}`}>
-                                                              {opt}
+                          <div className="flex flex-1 overflow-hidden">
+                              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                                  {/* Reusing block rendering logic from original, but simplified for XML brevity */}
+                                  {selectedLesson.lesson.blocks.map((block, idx) => (
+                                      <div key={block.id} className="relative group">
+                                          {isEditingContent && (
+                                              <div className="absolute -left-8 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-50 group-hover:opacity-100">
+                                                  <button onClick={() => handleMoveBlock(idx, 'up')} className="hover:text-indigo-600"><ArrowUp size={14} /></button>
+                                                  <button onClick={() => handleDeleteBlock(block.id)} className="hover:text-red-600"><Trash2 size={14} /></button>
+                                                  <button onClick={() => handleMoveBlock(idx, 'down')} className="hover:text-indigo-600"><ArrowDown size={14} /></button>
+                                              </div>
+                                          )}
+                                          {isEditingContent ? (
+                                              <div className="border border-indigo-100 rounded-lg p-2 bg-indigo-50/30">
+                                                  {block.type === ContentType.TEXT ? (
+                                                      <>
+                                                          <div className="flex gap-1 mb-2 border-b border-indigo-100 pb-1">
+                                                              <button onClick={() => insertFormat(block.id, 'b')} className="p-1 hover:bg-white rounded"><Bold size={14}/></button>
+                                                              <button onClick={() => insertFormat(block.id, 'i')} className="p-1 hover:bg-white rounded"><Italic size={14}/></button>
+                                                              <button onClick={() => insertFormat(block.id, 'ul')} className="p-1 hover:bg-white rounded"><List size={14}/></button>
                                                           </div>
-                                                      ))}
-                                                      {quizState[block.id] && <button onClick={() => resetQuiz(block.id)} className="text-xs text-indigo-600 mt-2 flex items-center gap-1"><RefreshCw size={12}/> Retry</button>}
-                                                  </div>
-                                              )}
+                                                          <textarea id={`textarea-${block.id}`} value={block.content} onChange={e => handleUpdateBlock(block.id, e.target.value)} className="w-full h-24 p-2 text-sm bg-white border-none focus:ring-0" />
+                                                      </>
+                                                  ) : (
+                                                      <input type="text" value={block.content} onChange={e => handleUpdateBlock(block.id, e.target.value)} className="w-full p-2 border rounded text-sm" />
+                                                  )}
+                                              </div>
+                                          ) : (
+                                              <div className="prose max-w-none text-slate-900">
+                                                  {block.type === ContentType.TEXT && <div dangerouslySetInnerHTML={{ __html: block.content }} />}
+                                                  {block.type === ContentType.IMAGE && <img src={block.content} className="rounded-lg shadow-sm max-h-80" />}
+                                                  {block.type === ContentType.QUIZ && (
+                                                      <div className="bg-slate-50 p-4 rounded-lg border">
+                                                          <div className="font-bold mb-2">{block.content}</div>
+                                                          {block.metadata?.options?.map((opt:string, i:number) => (
+                                                              <div key={i} onClick={() => !quizState[block.id] && handleQuizAnswer(block.id, i, block.metadata.correctIndex)} className={`p-2 border rounded mt-1 cursor-pointer ${quizState[block.id]?.selected === i ? (quizState[block.id]?.isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300') : 'hover:bg-white'}`}>
+                                                                  {opt}
+                                                              </div>
+                                                          ))}
+                                                          {quizState[block.id] && <button onClick={() => resetQuiz(block.id)} className="text-xs text-indigo-600 mt-2 flex items-center gap-1"><RefreshCw size={12}/> Retry</button>}
+                                                      </div>
+                                                  )}
+                                              </div>
+                                          )}
+                                      </div>
+                                  ))}
+                              </div>
+                              
+                              {/* AI Sidebar Panel */}
+                              {showAiPanel && (
+                                  <div className="w-80 border-l border-slate-200 bg-white shadow-xl flex flex-col animate-slide-in-right z-10">
+                                      <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
+                                          <div className="flex items-center gap-2 text-indigo-700 font-bold">
+                                              <Sparkles size={18} />
+                                              AI Assistant
                                           </div>
-                                      )}
+                                          <button onClick={() => setShowAiPanel(false)}><X size={16} className="text-slate-400 hover:text-slate-600" /></button>
+                                      </div>
+                                      <div className="flex-1 overflow-hidden">
+                                          <AIArchitect />
+                                      </div>
                                   </div>
-                              ))}
+                              )}
                           </div>
+                          
                           {isEditingContent && (
                               <div className="p-4 border-t bg-slate-50 flex gap-2 overflow-x-auto">
                                   <button onClick={() => handleAddBlock(ContentType.TEXT)} className="px-3 py-2 bg-white border rounded text-sm flex gap-1 items-center"><FileText size={16}/> Text</button>

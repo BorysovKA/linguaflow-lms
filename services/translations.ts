@@ -10,6 +10,7 @@ export const translations = {
     planning: "Planning",
     activityLog: "Activity Log",
     aiArchitect: "AI Academic Director",
+    testBuilder: "AI Test Builder",
     settings: "Settings",
     accessControl: "Access Control",
     manageConfig: "Manage application configurations and lists.",
@@ -141,6 +142,23 @@ export const translations = {
     moveToArchive: "Move to Archive",
     archived: "Archived",
 
+    // Test Builder Translations
+    tbSelectContent: "1. Select Content Sources",
+    tbSelectContentDesc: "Choose lessons to extract vocabulary and grammar from.",
+    tbConfigure: "2. Configure Test",
+    tbConfigureDesc: "Set the focus and parameters.",
+    tbGenerate: "Generate Test",
+    tbResults: "3. Editor & Results",
+    tbTestType: "Test Focus",
+    tbQuestionCount: "Question Count",
+    tbTypeReading: "Reading Comprehension",
+    tbTypeWriting: "Writing Prompts",
+    tbTypeVocab: "Vocabulary & Grammar",
+    tbTypeMixed: "Mixed Assessment",
+    tbRegenerate: "Regenerate",
+    tbSaveAsLesson: "Save as New Lesson",
+    tbGenerating: "Analyzing content and building test...",
+    
     aiHelper: {
       title: "AI Co-pilot",
       checkGrammar: "Check Grammar",
@@ -201,6 +219,7 @@ export const translations = {
     planning: "Планування",
     activityLog: "Останні дії",
     aiArchitect: "AI Методист",
+    testBuilder: "AI Генератор Тестів",
     settings: "Налаштування",
     accessControl: "Керування доступом",
     manageConfig: "Керування довідниками програми.",
@@ -331,6 +350,23 @@ export const translations = {
     restore: "Відновити",
     moveToArchive: "В архів",
     archived: "В архіві",
+
+    // Test Builder Translations
+    tbSelectContent: "1. Джерело контенту",
+    tbSelectContentDesc: "Оберіть уроки, з яких брати лексику та теми.",
+    tbConfigure: "2. Налаштування тесту",
+    tbConfigureDesc: "Оберіть тип та параметри.",
+    tbGenerate: "Згенерувати Тест",
+    tbResults: "3. Редактор та Результат",
+    tbTestType: "Тип тесту",
+    tbQuestionCount: "Кількість питань",
+    tbTypeReading: "Читання (Reading)",
+    tbTypeWriting: "Письмо (Writing)",
+    tbTypeVocab: "Лексика та Граматика",
+    tbTypeMixed: "Мікс (Всі навички)",
+    tbRegenerate: "Перегенерувати",
+    tbSaveAsLesson: "Зберегти як Урок",
+    tbGenerating: "Аналізую контент та будую тест...",
 
     aiHelper: {
       title: "AI Co-pilot",

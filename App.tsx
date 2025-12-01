@@ -22,6 +22,7 @@ import { useCourses } from './hooks/useCourses';
 // Lazy load heavy components
 const AIArchitect = React.lazy(() => import('./components/AIArchitect').then(module => ({ default: module.AIArchitect })));
 const ActivityLog = React.lazy(() => import('./components/ActivityLog').then(module => ({ default: module.ActivityLog })));
+const TestBuilder = React.lazy(() => import('./components/TestBuilder').then(module => ({ default: module.TestBuilder })));
 
 const MainApp: React.FC = () => {
   const { t } = useLanguage();
@@ -108,6 +109,37 @@ const MainApp: React.FC = () => {
         });
         setCurrentPage('curriculum');
     }
+  };
+
+  const handleSaveGeneratedTest = (courseId: string, moduleId: string, title: string, blocks: any[]) => {
+      // Create a new lesson manually via courses hook logic
+      // Since addLesson generates ID internally, we need a custom function or just create it here and update
+      // For simplicity, reusing addLesson logic but with content
+      
+      const newLesson = {
+          id: Date.now().toString(),
+          title,
+          durationMinutes: 45,
+          status: 'draft' as const,
+          authorId: auth.currentUser?.id,
+          rating: 0,
+          readiness: 0,
+          blocks
+      };
+
+      courses.setCourses(prev => prev.map(c => c.id !== courseId ? c : {
+          ...c,
+          modules: c.modules.map(m => m.id !== moduleId ? m : {
+              ...m,
+              lessons: [...m.lessons, newLesson]
+          })
+      }));
+      
+      activity.logAction(auth.currentUser, 'create', 'lesson', title, 'Generated via AI Test Builder');
+      
+      // Navigate to it
+      setCurriculumNavigation({ courseId, moduleId, lessonId: newLesson.id });
+      setCurrentPage('curriculum');
   };
 
   // Helper to get current user groups
@@ -229,6 +261,12 @@ const MainApp: React.FC = () => {
         return (
             <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-indigo-600" /></div>}>
                 <AIArchitect />
+            </Suspense>
+        );
+      case 'test-builder':
+        return (
+            <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-indigo-600" /></div>}>
+                <TestBuilder courses={courses.courses} onSaveAsLesson={handleSaveGeneratedTest} />
             </Suspense>
         );
       case 'activity':

@@ -102,3 +102,50 @@ export const analyzeLessonContent = async (
 
     return sendMessageToArchitect(prompt);
 };
+
+export const generateAssessment = async (
+    sourceContent: string,
+    config: { type: string, count: number, level: string }
+): Promise<{ blocks: any[] }> => {
+    const prompt = `
+    CONTEXT: You are creating an assessment test for English students based on specific lesson materials.
+    SOURCE MATERIAL:
+    "${sourceContent.substring(0, 15000)}" 
+    
+    TASK: Create a ${config.type} test for level ${config.level}.
+    REQUIREMENTS:
+    1. Use ONLY vocabulary and grammar found in the SOURCE MATERIAL.
+    2. Generate exactly ${config.count} questions/tasks.
+    3. Format the output as a valid JSON array of content blocks.
+    
+    OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
+    [
+      {
+        "type": "text" | "quiz",
+        "content": "The text question or instruction",
+        "metadata": { "options": ["A", "B"], "correctIndex": 0 } // Only for quiz type
+      }
+    ]
+    `;
+
+    try {
+        const responseText = await sendMessageToArchitect(prompt);
+        // Try to parse JSON from response (remove potential markdown code blocks)
+        const jsonMatch = responseText.match(/\[.*\]/s);
+        if (jsonMatch) {
+            return { blocks: JSON.parse(jsonMatch[0]) };
+        }
+        throw new Error("Failed to parse AI response as JSON");
+    } catch (e) {
+        console.error(e);
+        // Fallback textual response
+        return {
+            blocks: [
+                {
+                    type: ContentType.TEXT,
+                    content: "AI Error: Could not generate structured test. Here is the raw output:\n" + (await sendMessageToArchitect(prompt))
+                }
+            ]
+        };
+    }
+};
