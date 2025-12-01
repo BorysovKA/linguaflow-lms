@@ -504,7 +504,27 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                </h2>
                                <div className="flex gap-2">
                                   {canModify(activeCourseId!) && (
-                                      !isEditingContent ? (
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                const newStatus = selectedLesson.lesson.status === 'published' ? 'draft' : 'published';
+                                                onPublishLesson?.(activeCourse.id, activeModule.id, selectedLesson.lesson.id, newStatus === 'published');
+                                                setSelectedLesson({
+                                                    ...selectedLesson,
+                                                    lesson: { ...selectedLesson.lesson, status: newStatus }
+                                                });
+                                            }}
+                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+                                                selectedLesson.lesson.status === 'published' 
+                                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
+                                                : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                                            }`}
+                                        >
+                                            {selectedLesson.lesson.status === 'published' ? <Eye size={16} /> : <EyeOff size={16} />}
+                                            {selectedLesson.lesson.status === 'published' ? t.published : t.draft}
+                                        </button>
+
+                                      {!isEditingContent ? (
                                           <button onClick={() => setIsEditingContent(true)} className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-indigo-700">
                                               <Edit3 size={16} /> {t.edit}
                                           </button>
@@ -512,7 +532,8 @@ export const Curriculum: React.FC<CurriculumProps> = ({
                                           <button onClick={handleSaveContent} className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700">
                                               <CheckCircle size={16} /> {t.saveChanges}
                                           </button>
-                                      )
+                                      )}
+                                    </>
                                   )}
                                </div>
                           </div>
